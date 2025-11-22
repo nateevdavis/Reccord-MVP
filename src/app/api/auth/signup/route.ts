@@ -18,6 +18,16 @@ const signupSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Debug: Check if DATABASE_URL is available
+    if (!process.env.DATABASE_URL) {
+      console.error('DATABASE_URL is missing in API route')
+      console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('DATABASE')))
+      return NextResponse.json(
+        { error: 'Database configuration error. Please ensure DATABASE_URL is set in your .env file and restart the development server.' },
+        { status: 500 }
+      )
+    }
+    
     const body = await request.json()
     const validated = signupSchema.parse(body)
 

@@ -93,7 +93,7 @@ export default function SignupPage() {
           value={username}
           onChange={(e) => setUsername(e.target.value.toLowerCase())}
           required
-          pattern="[a-z0-9-]+"
+          pattern="[a-z0-9\-]+"
           title="Username must be lowercase, alphanumeric, and may contain hyphens"
           autoComplete="username"
         />
