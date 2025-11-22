@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 
-const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID
-
-if (!SPOTIFY_CLIENT_ID) {
-  throw new Error('SPOTIFY_CLIENT_ID is not set')
+function getSpotifyClientId(): string {
+  const clientId = process.env.SPOTIFY_CLIENT_ID
+  if (!clientId) {
+    throw new Error('SPOTIFY_CLIENT_ID is not set')
+  }
+  return clientId
 }
-
-// TypeScript assertion: we've checked above that it exists
-const SPOTIFY_CLIENT_ID_SAFE: string = SPOTIFY_CLIENT_ID
 
 function getRedirectUri(request: NextRequest): string {
   // Use environment variable if set, otherwise construct from request
@@ -75,8 +74,9 @@ export async function GET(request: NextRequest) {
       'user-read-email',
     ]
 
+    const clientId = getSpotifyClientId()
     const authUrl = new URL('https://accounts.spotify.com/authorize')
-    authUrl.searchParams.set('client_id', SPOTIFY_CLIENT_ID_SAFE)
+    authUrl.searchParams.set('client_id', clientId)
     authUrl.searchParams.set('response_type', 'code')
     authUrl.searchParams.set('redirect_uri', redirectUri)
     authUrl.searchParams.set('scope', scopes.join(' '))

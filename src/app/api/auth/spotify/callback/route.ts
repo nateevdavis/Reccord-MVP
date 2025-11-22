@@ -2,16 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID
-const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET
-
-if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET) {
-  throw new Error('Spotify credentials are not set')
+function getSpotifyCredentials(): { clientId: string; clientSecret: string } {
+  const clientId = process.env.SPOTIFY_CLIENT_ID
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET
+  
+  if (!clientId || !clientSecret) {
+    throw new Error('Spotify credentials are not set')
+  }
+  
+  return { clientId, clientSecret }
 }
-
-// TypeScript assertion: we've checked above that they exist
-const SPOTIFY_CLIENT_ID_SAFE: string = SPOTIFY_CLIENT_ID
-const SPOTIFY_CLIENT_SECRET_SAFE: string = SPOTIFY_CLIENT_SECRET
 
 function getBaseUrl(request: NextRequest): string {
   // Check for forwarded protocol headers (for proxies/tunnels like ngrok)
@@ -64,13 +64,14 @@ export async function GET(request: NextRequest) {
     }
 
     const redirectUri = getRedirectUri(request)
+    const { clientId, clientSecret } = getSpotifyCredentials()
 
     // Exchange code for tokens
     const tokenResponse = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: `Basic ${Buffer.from(`${SPOTIFY_CLIENT_ID_SAFE}:${SPOTIFY_CLIENT_SECRET_SAFE}`).toString('base64')}`,
+        Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
       },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
