@@ -1,14 +1,22 @@
 import SpotifyWebApi from 'spotify-web-api-node'
 import { prisma } from './prisma'
 
-if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
-  throw new Error('Spotify credentials are not set')
+function getSpotifyCredentials() {
+  const clientId = process.env.SPOTIFY_CLIENT_ID
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET
+  
+  if (!clientId || !clientSecret) {
+    throw new Error('Spotify credentials are not set')
+  }
+  
+  return { clientId, clientSecret }
 }
 
 export function getSpotifyApi(accessToken: string): SpotifyWebApi {
+  const { clientId, clientSecret } = getSpotifyCredentials()
   const spotifyApi = new SpotifyWebApi({
-    clientId: process.env.SPOTIFY_CLIENT_ID,
-    clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
+    clientId,
+    clientSecret,
   })
   spotifyApi.setAccessToken(accessToken)
   return spotifyApi
@@ -23,9 +31,10 @@ export async function refreshSpotifyToken(userId: string): Promise<string> {
     throw new Error('Spotify connection not found')
   }
 
+  const { clientId, clientSecret } = getSpotifyCredentials()
   const spotifyApi = new SpotifyWebApi({
-    clientId: process.env.SPOTIFY_CLIENT_ID!,
-    clientSecret: process.env.SPOTIFY_CLIENT_SECRET!,
+    clientId,
+    clientSecret,
     refreshToken: connection.refreshToken,
   })
 
