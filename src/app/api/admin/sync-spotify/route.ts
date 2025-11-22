@@ -6,6 +6,9 @@ import {
   fetchPlaylistTracks,
 } from '@/lib/spotify'
 
+// Force dynamic rendering to prevent build-time static analysis
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     const userId = await requireAuth()
