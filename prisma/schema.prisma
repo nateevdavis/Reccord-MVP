@@ -1,0 +1,150 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String             @id @default(cuid())
+  email             String             @unique
+  password          String             // hashed password
+  displayName       String
+  username          String             @unique
+  bio               String?
+  links             Json?              // array of { label, url }
+  lists             List[]
+  subscriptions     Subscription[]
+  stripeCustomer    StripeCustomer?
+  spotifyConnection SpotifyConnection?
+  payments          Payment[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@map("users")
+}
+
+model List {
+  id              String            @id @default(cuid())
+  ownerId         String
+  owner           User              @relation(fields: [ownerId], references: [id])
+  name            String
+  description     String
+  priceCents      Int               // store price as integer cents
+  isPublic        Boolean           @default(false)
+  sourceType      ListSourceType    @default(MANUAL)
+  slug            String            @unique // used for shareable link
+  spotifyConfig   SpotifyListConfig?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  items           ListItem[]
+  subscriptions   Subscription[]
+
+  @@map("lists")
+}
+
+model ListItem {
+  id          String   @id @default(cuid())
+  listId      String
+  list        List     @relation(fields: [listId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  url         String?
+  sortOrder   Int
+
+  @@map("list_items")
+}
+
+model Subscription {
+  id                  String    @id @default(cuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id])
+  listId              String
+  list                List      @relation(fields: [listId], references: [id])
+  stripeSubscriptionId String?  // For recurring subscriptions
+  payments            Payment[] // One subscription can have many payments
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([userId, listId])
+  @@map("subscriptions")
+}
+
+model StripeCustomer {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeCustomerId String  @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("stripe_customers")
+}
+
+model Payment {
+  id                    String        @id @default(cuid())
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id])
+  listId                String
+  subscriptionId        String?
+  subscription          Subscription? @relation(fields: [subscriptionId], references: [id])
+  stripePaymentIntentId String?       // For one-time payments
+  stripeSubscriptionId   String?       // For recurring subscriptions
+  amountCents           Int           // Total amount paid
+  platformFeeCents      Int           // Platform fee ($0.50)
+  status                PaymentStatus @default(PENDING)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@map("payments")
+}
+
+model SpotifyConnection {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken   String
+  refreshToken  String
+  expiresAt     DateTime
+  spotifyUserId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("spotify_connections")
+}
+
+model SpotifyListConfig {
+  id          String   @id @default(cuid())
+  listId      String   @unique
+  list        List     @relation(fields: [listId], references: [id], onDelete: Cascade)
+  playlistId  String   // Spotify playlist ID extracted from URL
+  playlistUrl String   // Full playlist URL
+  lastSyncedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("spotify_list_configs")
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+
+  @@map("payment_status")
+}
+
+enum ListSourceType {
+  MANUAL
+  SPOTIFY
+  APPLE_MUSIC
+
+  @@map("list_source_type")
+}
+
