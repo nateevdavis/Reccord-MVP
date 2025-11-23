@@ -7,6 +7,7 @@ import Textarea from '@/components/ui/Textarea'
 import Button from '@/components/ui/Button'
 import Checkbox from '@/components/ui/Checkbox'
 import SpotifyConnectButton from '@/components/SpotifyConnectButton'
+import StripeConnectButton from '@/components/StripeConnectButton'
 
 type ListItem = {
   name: string
@@ -28,6 +29,8 @@ export default function CreateForm({ listId }: { listId: string | null }) {
   const [items, setItems] = useState<ListItem[]>([{ name: '', description: '', url: '' }])
   const [playlistUrl, setPlaylistUrl] = useState('')
   const [spotifyConnected, setSpotifyConnected] = useState(false)
+  const [stripeConnected, setStripeConnected] = useState(false)
+  const [stripeStatus, setStripeStatus] = useState<string>('not_connected')
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(!!listId)
 
@@ -42,9 +45,25 @@ export default function CreateForm({ listId }: { listId: string | null }) {
         setSpotifyConnected(false)
       })
 
+    // Check Stripe Connect connection status
+    fetch('/api/stripe-connect/status')
+      .then((res) => res.json())
+      .then((data) => {
+        setStripeConnected(data.connected || false)
+        setStripeStatus(data.status || 'not_connected')
+      })
+      .catch(() => {
+        setStripeConnected(false)
+        setStripeStatus('not_connected')
+      })
+
     // Check if we just connected (from callback)
     if (searchParams.get('spotify_connected') === '1') {
       setSpotifyConnected(true)
+    }
+    if (searchParams.get('stripe_connect_success') === '1') {
+      setStripeConnected(true)
+      setStripeStatus('active')
     }
 
     if (listId) {
@@ -209,6 +228,14 @@ export default function CreateForm({ listId }: { listId: string | null }) {
           checked={isPublic}
           onChange={(e) => setIsPublic(e.target.checked)}
         />
+        {isPublic && (!stripeConnected || stripeStatus !== 'active') && (
+          <div className="mt-2 rounded border border-yellow-200 bg-yellow-50 p-3">
+            <p className="mb-2 text-sm text-yellow-800">
+              You must connect your Stripe account to make a list public. This allows you to receive payments from subscribers.
+            </p>
+            <StripeConnectButton />
+          </div>
+        )}
 
         <div>
           <label className="mb-2 block text-sm font-medium text-gray-700">

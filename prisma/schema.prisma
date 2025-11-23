@@ -21,6 +21,7 @@ model User {
   lists             List[]
   subscriptions     Subscription[]
   stripeCustomer    StripeCustomer?
+  stripeConnectAccount StripeConnectAccount?
   spotifyConnection SpotifyConnection?
   payments          Payment[]
   createdAt         DateTime           @default(now())
@@ -102,6 +103,18 @@ model Payment {
   updatedAt             DateTime      @updatedAt
 
   @@map("payments")
+}
+
+model StripeConnectAccount {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeAccountId   String   @unique // Express account ID
+  onboardingStatus String   @default("pending") // pending, active, restricted, etc.
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("stripe_connect_accounts")
 }
 
 model SpotifyConnection {

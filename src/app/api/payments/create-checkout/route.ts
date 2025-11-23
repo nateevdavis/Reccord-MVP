@@ -31,6 +31,13 @@ export async function POST(request: NextRequest) {
 
     const list = await prisma.list.findUnique({
       where: { id: listId },
+      include: {
+        owner: {
+          include: {
+            stripeConnectAccount: true,
+          },
+        },
+      },
     })
 
     if (!list) {
@@ -39,6 +46,26 @@ export async function POST(request: NextRequest) {
 
     if (list.priceCents === 0) {
       return NextResponse.json({ error: 'This list is free' }, { status: 400 })
+    }
+
+    // Verify list owner has an active Stripe Connect account
+    if (!list.owner.stripeConnectAccount) {
+      return NextResponse.json(
+        { error: 'List creator has not connected their Stripe account' },
+        { status: 400 }
+      )
+    }
+
+    // Verify the account is active and can receive payments
+    const connectAccount = await stripe.accounts.retrieve(
+      list.owner.stripeConnectAccount.stripeAccountId
+    )
+
+    if (!connectAccount.charges_enabled) {
+      return NextResponse.json(
+        { error: 'List creator\'s Stripe account is not ready to receive payments' },
+        { status: 400 }
+      )
     }
 
     // Check if user already subscribed
@@ -61,7 +88,10 @@ export async function POST(request: NextRequest) {
     // Calculate total amount (list price + platform fee)
     const totalAmountCents = list.priceCents + PLATFORM_FEE_CENTS
 
-    // Create Stripe Checkout Session for recurring subscription
+    // Calculate platform fee percentage (platform fee / total amount)
+    const platformFeePercent = Math.round((PLATFORM_FEE_CENTS / totalAmountCents) * 10000) // Stripe uses basis points (10000 = 100%)
+
+    // Create Stripe Checkout Session for recurring subscription with Connect
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
       mode: 'subscription',
@@ -77,27 +107,26 @@ export async function POST(request: NextRequest) {
             recurring: {
               interval: 'month',
             },
-            unit_amount: list.priceCents,
-          },
-          quantity: 1,
-        },
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: 'Platform Fee',
-            },
-            recurring: {
-              interval: 'month',
-            },
-            unit_amount: PLATFORM_FEE_CENTS,
+            unit_amount: totalAmountCents,
           },
           quantity: 1,
         },
       ],
+      subscription_data: {
+        application_fee_percent: platformFeePercent,
+        transfer_data: {
+          destination: list.owner.stripeConnectAccount.stripeAccountId,
+        },
+        metadata: {
+          userId,
+          listId,
+          creatorAccountId: list.owner.stripeConnectAccount.stripeAccountId,
+        },
+      },
       metadata: {
         userId,
         listId,
+        creatorAccountId: list.owner.stripeConnectAccount.stripeAccountId,
       },
       success_url: `${getBaseUrl(request)}/lists/${list.slug}?success=true`,
       cancel_url: `${getBaseUrl(request)}/lists/${list.slug}?canceled=true`,

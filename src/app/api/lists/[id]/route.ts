@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
 import { z } from 'zod'
 import { extractPlaylistId, getValidAccessToken, fetchPlaylistTracks } from '@/lib/spotify'
+import { stripe } from '@/lib/stripe'
 
 const updateListSchema = z.object({
   name: z.string().min(1, 'List name is required'),
@@ -85,6 +86,40 @@ export async function PUT(
     const body = await request.json()
     console.log('Updating list with payload:', JSON.stringify(body, null, 2))
     const validated = updateListSchema.parse(body)
+
+    // Validate Stripe Connect account if making list public (or if it's already public and staying public)
+    if (validated.isPublic) {
+      const stripeConnectAccount = await prisma.stripeConnectAccount.findUnique({
+        where: { userId },
+      })
+
+      if (!stripeConnectAccount) {
+        return NextResponse.json(
+          { error: 'You must connect your Stripe account before making a list public. Please connect your Stripe account first.' },
+          { status: 400 }
+        )
+      }
+
+      // Verify the account is active and can receive payments
+      try {
+        const connectAccount = await stripe.accounts.retrieve(
+          stripeConnectAccount.stripeAccountId
+        )
+
+        if (!connectAccount.charges_enabled) {
+          return NextResponse.json(
+            { error: 'Your Stripe account is not ready to receive payments. Please complete the onboarding process.' },
+            { status: 400 }
+          )
+        }
+      } catch (error) {
+        console.error('Error verifying Stripe Connect account:', error)
+        return NextResponse.json(
+          { error: 'Unable to verify Stripe account. Please try again.' },
+          { status: 500 }
+        )
+      }
+    }
 
     // Handle Spotify list updates
     if (validated.sourceType === 'SPOTIFY') {

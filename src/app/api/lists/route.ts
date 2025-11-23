@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
 import { z } from 'zod'
 import { extractPlaylistId, getValidAccessToken, fetchPlaylistTracks } from '@/lib/spotify'
+import { stripe } from '@/lib/stripe'
 
 const createListSchema = z.object({
   name: z.string().min(1, 'List name is required'),
@@ -57,6 +58,40 @@ export async function POST(request: NextRequest) {
 
     const baseSlug = generateSlug(validated.name)
     const slug = await ensureUniqueSlug(baseSlug)
+
+    // Validate Stripe Connect account if making list public
+    if (validated.isPublic) {
+      const stripeConnectAccount = await prisma.stripeConnectAccount.findUnique({
+        where: { userId },
+      })
+
+      if (!stripeConnectAccount) {
+        return NextResponse.json(
+          { error: 'You must connect your Stripe account before making a list public. Please connect your Stripe account first.' },
+          { status: 400 }
+        )
+      }
+
+      // Verify the account is active and can receive payments
+      try {
+        const connectAccount = await stripe.accounts.retrieve(
+          stripeConnectAccount.stripeAccountId
+        )
+
+        if (!connectAccount.charges_enabled) {
+          return NextResponse.json(
+            { error: 'Your Stripe account is not ready to receive payments. Please complete the onboarding process.' },
+            { status: 400 }
+          )
+        }
+      } catch (error) {
+        console.error('Error verifying Stripe Connect account:', error)
+        return NextResponse.json(
+          { error: 'Unable to verify Stripe account. Please try again.' },
+          { status: 500 }
+        )
+      }
+    }
 
     // Handle Spotify list creation
     if (validated.sourceType === 'SPOTIFY') {
