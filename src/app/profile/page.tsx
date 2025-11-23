@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Input from '@/components/ui/Input'
@@ -20,7 +20,7 @@ type List = {
   slug: string
 }
 
-export default function ProfilePage() {
+function ProfilePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [displayName, setDisplayName] = useState('')
@@ -426,6 +426,18 @@ export default function ProfilePage() {
         </section>
       </div>
     </div>
+  )
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={
+      <div className="mx-auto max-w-2xl px-4 py-16">
+        <div className="text-center text-gray-600">Loading...</div>
+      </div>
+    }>
+      <ProfilePageContent />
+    </Suspense>
   )
 }
 
