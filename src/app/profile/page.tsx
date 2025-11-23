@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
 import Button from '@/components/ui/Button'
+import StripeConnectButton from '@/components/StripeConnectButton'
 
 type LinkItem = {
   label: string
@@ -21,6 +22,7 @@ type List = {
 
 export default function ProfilePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [displayName, setDisplayName] = useState('')
   const [username, setUsername] = useState('')
   const [bio, setBio] = useState('')
@@ -28,6 +30,8 @@ export default function ProfilePage() {
   const [myLists, setMyLists] = useState<List[]>([])
   const [subscriptions, setSubscriptions] = useState<List[]>([])
   const [spotifyConnected, setSpotifyConnected] = useState(false)
+  const [stripeConnected, setStripeConnected] = useState(false)
+  const [stripeStatus, setStripeStatus] = useState<string>('not_connected')
   const [disconnectingSpotify, setDisconnectingSpotify] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -58,9 +62,37 @@ export default function ProfilePage() {
           setSpotifyConnected(data.spotifyConnected)
         }
         setLoading(false)
+        
+        // Fetch Stripe Connect status
+        fetch('/api/stripe-connect/status')
+          .then((res) => res.json())
+          .then((data) => {
+            setStripeConnected(data.connected || false)
+            setStripeStatus(data.status || 'not_connected')
+          })
+          .catch(() => {
+            setStripeConnected(false)
+            setStripeStatus('not_connected')
+          })
       })
       .catch(() => setLoading(false))
   }, [])
+
+  // Check if we just connected Stripe (from callback)
+  useEffect(() => {
+    if (searchParams.get('stripe_connect_success') === '1') {
+      fetch('/api/stripe-connect/status')
+        .then((res) => res.json())
+        .then((data) => {
+          setStripeConnected(data.connected || false)
+          setStripeStatus(data.status || 'not_connected')
+        })
+        .catch(() => {
+          setStripeConnected(false)
+          setStripeStatus('not_connected')
+        })
+    }
+  }, [searchParams])
 
   const addLink = () => {
     setLinks([...links, { label: '', url: '' }])
@@ -303,6 +335,20 @@ export default function ProfilePage() {
                   Connect
                 </a>
               )}
+            </div>
+            
+            <div className="rounded border border-gray-200 p-4">
+              <div className="mb-3">
+                <h3 className="font-medium text-gray-900">Stripe</h3>
+                <p className="text-sm text-gray-600">
+                  {stripeConnected && stripeStatus === 'active'
+                    ? 'Connected - You can receive payments from list subscriptions'
+                    : stripeConnected && stripeStatus === 'pending'
+                    ? 'Setup in progress - Complete onboarding to receive payments'
+                    : 'Not connected - Required to make lists public and receive payments'}
+                </p>
+              </div>
+              <StripeConnectButton />
             </div>
           </div>
         </section>

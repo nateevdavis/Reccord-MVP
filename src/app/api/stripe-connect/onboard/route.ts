@@ -20,6 +20,8 @@ function getBaseUrl(request: NextRequest): string {
 export async function POST(request: NextRequest) {
   try {
     const userId = await requireAuth()
+    const body = await request.json().catch(() => ({}))
+    const returnUrl = body.returnUrl || '/create'
 
     // Check if user already has a Stripe Connect account
     const existingAccount = await prisma.stripeConnectAccount.findUnique({
@@ -69,10 +71,11 @@ export async function POST(request: NextRequest) {
 
     // Create account link for onboarding
     const baseUrl = getBaseUrl(request)
+    const returnPath = returnUrl.startsWith('/') ? returnUrl : `/${returnUrl}`
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
-      refresh_url: `${baseUrl}/create?stripe_connect_refresh=1`,
-      return_url: `${baseUrl}/create?stripe_connect_success=1`,
+      refresh_url: `${baseUrl}${returnPath}?stripe_connect_refresh=1`,
+      return_url: `${baseUrl}${returnPath}?stripe_connect_success=1`,
       type: 'account_onboarding',
     })
 

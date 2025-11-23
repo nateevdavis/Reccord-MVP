@@ -1,12 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import Button from './ui/Button'
 
-export default function StripeConnectButton() {
+type StripeConnectButtonProps = {
+  returnUrl?: string
+}
+
+export default function StripeConnectButton(props: StripeConnectButtonProps = {}) {
+  const { returnUrl } = props
   const router = useRouter()
   const searchParams = useSearchParams()
+  const pathname = usePathname()
   const [isConnected, setIsConnected] = useState(false)
   const [status, setStatus] = useState<string>('not_connected')
   const [loading, setLoading] = useState(false)
@@ -38,8 +44,11 @@ export default function StripeConnectButton() {
   const handleConnect = async () => {
     setLoading(true)
     try {
+      const currentReturnUrl = returnUrl || pathname || '/create'
       const response = await fetch('/api/stripe-connect/onboard', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ returnUrl: currentReturnUrl }),
       })
       const data = await response.json()
       if (data.url) {
