@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
 import { z } from 'zod'
 import { extractPlaylistId, getValidAccessToken, fetchPlaylistTracks } from '@/lib/spotify'
+import { extractPlaylistId as extractApplePlaylistId, getUserToken, getDeveloperToken, fetchPlaylistTracks as fetchApplePlaylistTracks } from '@/lib/apple-music'
 import { stripe } from '@/lib/stripe'
 
 const updateListSchema = z.object({
@@ -43,6 +44,7 @@ export async function GET(
           orderBy: { sortOrder: 'asc' },
         },
         spotifyConfig: true,
+        appleMusicConfig: true,
       },
     })
 
@@ -208,6 +210,100 @@ export async function PUT(
         include: {
           items: true,
           spotifyConfig: true,
+        },
+      })
+
+      return NextResponse.json({ list: updatedList })
+    }
+
+    // Handle Apple Music list updates
+    if (validated.sourceType === 'APPLE_MUSIC') {
+      if (!validated.playlistUrl) {
+        return NextResponse.json(
+          { error: 'Playlist URL is required for Apple Music lists' },
+          { status: 400 }
+        )
+      }
+
+      // Check if user has Apple Music connection
+      const appleMusicConnection = await prisma.appleMusicConnection.findUnique({
+        where: { userId },
+      })
+
+      if (!appleMusicConnection) {
+        return NextResponse.json(
+          { error: 'Apple Music not connected. Please connect Apple Music first.' },
+          { status: 400 }
+        )
+      }
+
+      // Extract playlist ID from URL
+      const playlistId = extractApplePlaylistId(validated.playlistUrl)
+      if (!playlistId) {
+        return NextResponse.json(
+          { error: 'Invalid Apple Music playlist URL' },
+          { status: 400 }
+        )
+      }
+
+      // Get developer token and user token
+      const developerToken = await getDeveloperToken()
+      const userToken = await getUserToken(userId)
+
+      // Fetch playlist tracks
+      const tracks = await fetchApplePlaylistTracks(developerToken, userToken, playlistId)
+
+      // Delete existing items
+      await prisma.listItem.deleteMany({
+        where: { listId: id },
+      })
+
+      // Update or create Apple Music config
+      const existingConfig = await prisma.appleMusicListConfig.findUnique({
+        where: { listId: id },
+      })
+
+      if (existingConfig) {
+        await prisma.appleMusicListConfig.update({
+          where: { id: existingConfig.id },
+          data: {
+            playlistId,
+            playlistUrl: validated.playlistUrl,
+            lastSyncedAt: new Date(),
+          },
+        })
+      } else {
+        await prisma.appleMusicListConfig.create({
+          data: {
+            listId: id,
+            playlistId,
+            playlistUrl: validated.playlistUrl,
+            lastSyncedAt: new Date(),
+          },
+        })
+      }
+
+      // Update list and create new items
+      const updatedList = await prisma.list.update({
+        where: { id },
+        data: {
+          name: validated.name,
+          description: validated.description || '',
+          priceCents: validated.priceCents,
+          isPublic: validated.isPublic,
+          sourceType: validated.sourceType,
+          items: {
+            create: tracks.map((track, index) => ({
+              name: track.name,
+              description: track.description || null,
+              url: track.url || null,
+              sortOrder: index,
+            })),
+          },
+        },
+        include: {
+          items: true,
+          appleMusicConfig: true,
         },
       })
 

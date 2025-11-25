@@ -7,6 +7,7 @@ import Textarea from '@/components/ui/Textarea'
 import Button from '@/components/ui/Button'
 import Checkbox from '@/components/ui/Checkbox'
 import SpotifyConnectButton from '@/components/SpotifyConnectButton'
+import AppleMusicConnectButton from '@/components/AppleMusicConnectButton'
 import StripeConnectButton from '@/components/StripeConnectButton'
 
 type ListItem = {
@@ -29,6 +30,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
   const [items, setItems] = useState<ListItem[]>([{ name: '', description: '', url: '' }])
   const [playlistUrl, setPlaylistUrl] = useState('')
   const [spotifyConnected, setSpotifyConnected] = useState(false)
+  const [appleMusicConnected, setAppleMusicConnected] = useState(false)
   const [stripeConnected, setStripeConnected] = useState(false)
   const [stripeStatus, setStripeStatus] = useState<string>('not_connected')
   const [loading, setLoading] = useState(false)
@@ -43,6 +45,16 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       })
       .catch(() => {
         setSpotifyConnected(false)
+      })
+
+    // Check Apple Music connection status
+    fetch('/api/auth/apple-music/status')
+      .then((res) => res.json())
+      .then((data) => {
+        setAppleMusicConnected(data.connected || false)
+      })
+      .catch(() => {
+        setAppleMusicConnected(false)
       })
 
     // Check Stripe Connect connection status
@@ -60,6 +72,9 @@ export default function CreateForm({ listId }: { listId: string | null }) {
     // Check if we just connected (from callback)
     if (searchParams.get('spotify_connected') === '1') {
       setSpotifyConnected(true)
+    }
+    if (searchParams.get('apple_music_connected') === '1') {
+      setAppleMusicConnected(true)
     }
     if (searchParams.get('stripe_connect_success') === '1') {
       setStripeConnected(true)
@@ -79,6 +94,10 @@ export default function CreateForm({ listId }: { listId: string | null }) {
             if (data.list.spotifyConfig) {
               setPlaylistUrl(data.list.spotifyConfig.playlistUrl)
               setSpotifyConnected(true)
+            }
+            if (data.list.appleMusicConfig) {
+              setPlaylistUrl(data.list.appleMusicConfig.playlistUrl)
+              setAppleMusicConnected(true)
             }
             if (data.list.items && data.list.items.length > 0) {
               setItems(
@@ -145,6 +164,20 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       }
     }
 
+    // Validate Apple Music playlist URL if needed
+    if (sourceType === 'APPLE_MUSIC') {
+      if (!appleMusicConnected) {
+        alert('Please connect Apple Music first')
+        setLoading(false)
+        return
+      }
+      if (!playlistUrl.trim()) {
+        alert('Please enter an Apple Music playlist URL')
+        setLoading(false)
+        return
+      }
+    }
+
     const payload = {
       name: name.trim(),
       description: description.trim(),
@@ -152,7 +185,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       isPublic,
       sourceType,
       items: validItems,
-      ...(sourceType === 'SPOTIFY' && { playlistUrl: playlistUrl.trim() }),
+      ...((sourceType === 'SPOTIFY' || sourceType === 'APPLE_MUSIC') && { playlistUrl: playlistUrl.trim() }),
     }
 
     try {
@@ -266,10 +299,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
             </button>
             <button
               type="button"
-              onClick={() => {
-                setSourceType('APPLE_MUSIC')
-                alert('Coming soon')
-              }}
+              onClick={() => setSourceType('APPLE_MUSIC')}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                 sourceType === 'APPLE_MUSIC'
                   ? 'bg-gray-900 text-white'
@@ -301,6 +331,32 @@ export default function CreateForm({ listId }: { listId: string | null }) {
                 />
                 <p className="mt-1 text-sm text-gray-600">
                   Enter the URL of your Spotify playlist. We'll sync the top 10 songs.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {sourceType === 'APPLE_MUSIC' && (
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Connect Apple Music
+              </label>
+              <AppleMusicConnectButton />
+            </div>
+            {appleMusicConnected && (
+              <div>
+                <Input
+                  label="Apple Music Playlist URL"
+                  type="url"
+                  value={playlistUrl}
+                  onChange={(e) => setPlaylistUrl(e.target.value)}
+                  placeholder="https://music.apple.com/us/playlist/..."
+                  required
+                />
+                <p className="mt-1 text-sm text-gray-600">
+                  Enter the URL of your Apple Music playlist. We'll sync the top 10 songs.
                 </p>
               </div>
             )}

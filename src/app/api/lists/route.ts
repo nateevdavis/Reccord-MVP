@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
 import { z } from 'zod'
 import { extractPlaylistId, getValidAccessToken, fetchPlaylistTracks } from '@/lib/spotify'
+import { extractPlaylistId as extractApplePlaylistId, getUserToken, getDeveloperToken, fetchPlaylistTracks as fetchApplePlaylistTracks } from '@/lib/apple-music'
 import { stripe } from '@/lib/stripe'
 
 const createListSchema = z.object({
@@ -158,6 +159,78 @@ export async function POST(request: NextRequest) {
         include: {
           items: true,
           spotifyConfig: true,
+        },
+      })
+
+      return NextResponse.json({ list }, { status: 201 })
+    }
+
+    // Handle Apple Music list creation
+    if (validated.sourceType === 'APPLE_MUSIC') {
+      if (!validated.playlistUrl) {
+        return NextResponse.json(
+          { error: 'Playlist URL is required for Apple Music lists' },
+          { status: 400 }
+        )
+      }
+
+      // Check if user has Apple Music connection
+      const appleMusicConnection = await prisma.appleMusicConnection.findUnique({
+        where: { userId },
+      })
+
+      if (!appleMusicConnection) {
+        return NextResponse.json(
+          { error: 'Apple Music not connected. Please connect Apple Music first.' },
+          { status: 400 }
+        )
+      }
+
+      // Extract playlist ID from URL
+      const playlistId = extractApplePlaylistId(validated.playlistUrl)
+      if (!playlistId) {
+        return NextResponse.json(
+          { error: 'Invalid Apple Music playlist URL' },
+          { status: 400 }
+        )
+      }
+
+      // Get developer token and user token
+      const developerToken = await getDeveloperToken()
+      const userToken = await getUserToken(userId)
+
+      // Fetch playlist tracks
+      const tracks = await fetchApplePlaylistTracks(developerToken, userToken, playlistId)
+
+      // Create list with Apple Music config and items
+      const list = await prisma.list.create({
+        data: {
+          ownerId: userId,
+          name: validated.name,
+          description: validated.description || '',
+          priceCents: validated.priceCents,
+          isPublic: validated.isPublic,
+          sourceType: validated.sourceType,
+          slug,
+          appleMusicConfig: {
+            create: {
+              playlistId,
+              playlistUrl: validated.playlistUrl,
+              lastSyncedAt: new Date(),
+            },
+          },
+          items: {
+            create: tracks.map((track, index) => ({
+              name: track.name,
+              description: track.description || null,
+              url: track.url || null,
+              sortOrder: index,
+            })),
+          },
+        },
+        include: {
+          items: true,
+          appleMusicConfig: true,
         },
       })
 

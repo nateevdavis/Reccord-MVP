@@ -23,6 +23,7 @@ model User {
   stripeCustomer    StripeCustomer?
   stripeConnectAccount StripeConnectAccount?
   spotifyConnection SpotifyConnection?
+  appleMusicConnection AppleMusicConnection?
   payments          Payment[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -41,6 +42,7 @@ model List {
   sourceType      ListSourceType    @default(MANUAL)
   slug            String            @unique // used for shareable link
   spotifyConfig   SpotifyListConfig?
+  appleMusicConfig AppleMusicListConfig?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   items           ListItem[]
@@ -142,6 +144,33 @@ model SpotifyListConfig {
   updatedAt   DateTime @updatedAt
 
   @@map("spotify_list_configs")
+}
+
+model AppleMusicConnection {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  developerToken String  // Apple Music developer token (JWT)
+  musicUserToken String? // User's MusicKit token (from client)
+  expiresAt     DateTime
+  appleMusicUserId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("apple_music_connections")
+}
+
+model AppleMusicListConfig {
+  id          String   @id @default(cuid())
+  listId      String   @unique
+  list        List     @relation(fields: [listId], references: [id], onDelete: Cascade)
+  playlistId  String   // Apple Music playlist ID extracted from URL
+  playlistUrl String   // Full playlist URL
+  lastSyncedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("apple_music_list_configs")
 }
 
 enum PaymentStatus {
