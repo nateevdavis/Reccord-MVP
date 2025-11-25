@@ -76,23 +76,37 @@ export async function getDeveloperToken(): Promise<string> {
  * Extract playlist ID from Apple Music URL
  * Supports formats like:
  * - https://music.apple.com/us/playlist/pl.u-xxx
+ * - https://music.apple.com/us/playlist/playlist-name/pl.xxx
  * - https://music.apple.com/playlist/pl.u-xxx
  * - music://playlist/pl.u-xxx
  */
 export function extractPlaylistId(playlistUrl: string): string | null {
   // Apple Music playlist URLs can be:
-  // https://music.apple.com/us/playlist/pl.u-xxx
+  // https://music.apple.com/us/playlist/pl.u-xxx (direct)
+  // https://music.apple.com/us/playlist/playlist-name/pl.84f88d0ece474117b4e6e5484f84c4f2 (with name)
   // https://music.apple.com/playlist/pl.u-xxx
   // music://playlist/pl.u-xxx
   
-  const urlPattern = /playlist\/(pl\.[a-zA-Z0-9-]+)/
-  const uriPattern = /music:\/\/playlist\/(pl\.[a-zA-Z0-9-]+)/
+  // Match pl. followed by alphanumeric, dots, and hyphens
+  // This handles both direct (playlist/pl.xxx) and with name (playlist/name/pl.xxx) formats
+  const urlPattern = /playlist\/[^\/]*\/(pl\.[a-zA-Z0-9.-]+)/
+  // Also try direct format (playlist/pl.xxx)
+  const urlPatternDirect = /playlist\/(pl\.[a-zA-Z0-9.-]+)/
+  const uriPattern = /music:\/\/playlist\/(pl\.[a-zA-Z0-9.-]+)/
   
-  const urlMatch = playlistUrl.match(urlPattern)
+  // Try with name first (most common format)
+  let urlMatch = playlistUrl.match(urlPattern)
   if (urlMatch) {
     return urlMatch[1]
   }
   
+  // Try direct format
+  urlMatch = playlistUrl.match(urlPatternDirect)
+  if (urlMatch) {
+    return urlMatch[1]
+  }
+  
+  // Try URI format
   const uriMatch = playlistUrl.match(uriPattern)
   if (uriMatch) {
     return uriMatch[1]
