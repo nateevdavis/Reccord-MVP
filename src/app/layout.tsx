@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import Nav from '@/components/Nav'
+import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
   title: 'Reccord',
@@ -17,6 +18,7 @@ export default function RootLayout({
       <body>
         <Nav />
         <main className="min-h-screen bg-white">{children}</main>
+        <Footer />
       </body>
     </html>
   )
