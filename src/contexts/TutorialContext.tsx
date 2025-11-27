@@ -115,7 +115,7 @@ export function TutorialProvider({
   }
 
   const setContext = (newContext: any) => {
-    setContextState((prev) => ({ ...prev, ...newContext }))
+    setContextState((prev: any) => ({ ...prev, ...newContext }))
   }
 
   return (
