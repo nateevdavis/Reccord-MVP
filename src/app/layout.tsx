@@ -21,11 +21,18 @@ export default async function RootLayout({
   let tutorialCompleted = false
   
   if (userId) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { tutorialCompleted: true },
-    })
-    tutorialCompleted = user?.tutorialCompleted || false
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { tutorialCompleted: true },
+      })
+      tutorialCompleted = user?.tutorialCompleted || false
+    } catch (error) {
+      // If database connection fails, default to false (tutorial not completed)
+      // This prevents the app from crashing if database is unavailable
+      console.error('Failed to fetch tutorial status:', error)
+      tutorialCompleted = false
+    }
   }
 
   return (
