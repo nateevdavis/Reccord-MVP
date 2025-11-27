@@ -24,7 +24,7 @@ type ListSourceType = 'MANUAL' | 'SPOTIFY' | 'APPLE_MUSIC'
 export default function CreateForm({ listId }: { listId: string | null }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentStep, isActive, startTutorial, nextStep, setContext } = useTutorial()
+  const { currentStep, isActive, isCompleted, startTutorial, nextStep, setContext } = useTutorial()
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -121,7 +121,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
     }
 
     // Start tutorial if on create page (not edit) and tutorial hasn't started
-    if (!listId && !isActive) {
+    if (!listId && !isActive && !isCompleted) {
       // Check if we should start tutorial (user clicked create link or landed on page)
       const shouldStart = searchParams.get('tutorial') === 'start' || 
                           (typeof window !== 'undefined' && window.location.pathname === '/create')
@@ -132,7 +132,8 @@ export default function CreateForm({ listId }: { listId: string | null }) {
         }, 100)
       }
     }
-  }, [listId, searchParams, isActive, startTutorial])
+  }, [listId, searchParams, isActive, isCompleted, startTutorial])
+
 
   // Update tutorial context when sourceType changes
   useEffect(() => {
@@ -268,7 +269,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
               setName(e.target.value)
               // Advance tutorial if on title step
               if (isActive && currentStep === 'title' && e.target.value.trim()) {
-                setTimeout(() => nextStep(), 500)
+                setTimeout(() => nextStep(), 300)
               }
             }}
             required
@@ -286,7 +287,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
               setDescription(e.target.value)
               // Advance tutorial if on description step
               if (isActive && currentStep === 'description' && e.target.value.trim()) {
-                setTimeout(() => nextStep(), 500)
+                setTimeout(() => nextStep(), 300)
               }
             }}
             rows={4}
@@ -307,7 +308,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
               setPrice(e.target.value)
               // Advance tutorial if on price step
               if (isActive && currentStep === 'price' && e.target.value.trim()) {
-                setTimeout(() => nextStep(), 500)
+                setTimeout(() => nextStep(), 300)
               }
             }}
             placeholder="0.00"
@@ -328,7 +329,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
               setIsPublic(e.target.checked)
               // Advance tutorial if on public step
               if (isActive && currentStep === 'public') {
-                setTimeout(() => nextStep(), 500)
+                setTimeout(() => nextStep(), 300)
               }
             }}
           />
@@ -356,7 +357,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
                 setSourceType('MANUAL')
                 // Advance tutorial if on source-type step
                 if (isActive && currentStep === 'source-type') {
-                  setTimeout(() => nextStep({ sourceType: 'MANUAL' }), 500)
+                  setTimeout(() => nextStep({ sourceType: 'MANUAL' }), 300)
                 }
               }}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
@@ -373,7 +374,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
                 setSourceType('SPOTIFY')
                 // Advance tutorial if on source-type step
                 if (isActive && currentStep === 'source-type') {
-                  setTimeout(() => nextStep({ sourceType: 'SPOTIFY' }), 500)
+                  setTimeout(() => nextStep({ sourceType: 'SPOTIFY' }), 300)
                 }
               }}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
@@ -390,7 +391,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
                 setSourceType('APPLE_MUSIC')
                 // Advance tutorial if on source-type step
                 if (isActive && currentStep === 'source-type') {
-                  setTimeout(() => nextStep({ sourceType: 'APPLE_MUSIC' }), 500)
+                  setTimeout(() => nextStep({ sourceType: 'APPLE_MUSIC' }), 300)
                 }
               }}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
@@ -422,7 +423,13 @@ export default function CreateForm({ listId }: { listId: string | null }) {
                     label="Spotify Playlist URL"
                     type="url"
                     value={playlistUrl}
-                    onChange={(e) => setPlaylistUrl(e.target.value)}
+                    onChange={(e) => {
+                      setPlaylistUrl(e.target.value)
+                      // Auto-advance when URL is entered
+                      if (isActive && currentStep === 'music-url' && e.target.value.trim()) {
+                        setTimeout(() => nextStep(), 300)
+                      }
+                    }}
                     placeholder="https://open.spotify.com/playlist/..."
                     required
                   />
@@ -453,7 +460,13 @@ export default function CreateForm({ listId }: { listId: string | null }) {
                     label="Apple Music Playlist URL"
                     type="url"
                     value={playlistUrl}
-                    onChange={(e) => setPlaylistUrl(e.target.value)}
+                    onChange={(e) => {
+                      setPlaylistUrl(e.target.value)
+                      // Auto-advance when URL is entered
+                      if (isActive && currentStep === 'music-url' && e.target.value.trim()) {
+                        setTimeout(() => nextStep(), 300)
+                      }
+                    }}
                     placeholder="https://music.apple.com/us/playlist/..."
                     required
                   />
@@ -507,9 +520,13 @@ export default function CreateForm({ listId }: { listId: string | null }) {
                 <Input
                   label="Name"
                   value={item.name}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     updateItem(index, 'name', e.target.value)
-                  }
+                    // Auto-advance when first item name is entered
+                    if (isActive && currentStep === 'manual-item' && index === 0 && e.target.value.trim()) {
+                      setTimeout(() => nextStep(), 300)
+                    }
+                  }}
                 />
                 <Textarea
                   label="Description"

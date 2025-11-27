@@ -64,15 +64,17 @@ export default function TutorialModal({ step }: TutorialModalProps) {
 
     setPosition(positions[step.position] || positions.bottom)
 
-    // Highlight target element
-    target.style.outline = '2px solid rgba(59, 130, 246, 0.5)'
-    target.style.outlineOffset = '4px'
+    // Highlight target element with subtle outline (non-blocking)
+    target.style.outline = '2px solid rgba(59, 130, 246, 0.4)'
+    target.style.outlineOffset = '2px'
     target.style.transition = 'outline 0.2s'
+    target.style.pointerEvents = 'auto' // Ensure target remains clickable
 
     return () => {
       if (target) {
         target.style.outline = ''
         target.style.outlineOffset = ''
+        target.style.pointerEvents = ''
       }
     }
   }, [isActive, currentStep, step.id, step.targetSelector, step.position])
@@ -92,12 +94,9 @@ export default function TutorialModal({ step }: TutorialModalProps) {
 
   return (
     <>
-      {/* Backdrop with cutout */}
-      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" />
-      
-      {/* Modal positioned near target */}
+      {/* Modal positioned near target - non-blocking, no backdrop */}
       <div
-        className="fixed z-50 w-80 rounded-lg bg-white p-6 shadow-xl transition-all"
+        className="fixed z-50 w-80 rounded-lg bg-white p-6 shadow-xl transition-all pointer-events-auto"
         style={{
           ...position,
           maxWidth: 'calc(100vw - 2rem)',
@@ -108,6 +107,8 @@ export default function TutorialModal({ step }: TutorialModalProps) {
               ? 'translateY(-50%)'
               : undefined,
         }}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
           <span className="text-xs font-medium text-gray-500">

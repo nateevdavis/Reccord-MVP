@@ -9,7 +9,7 @@ interface TutorialContextType {
   isCompleted: boolean
   startTutorial: () => void
   nextStep: (context?: any) => void
-  skipTutorial: () => void
+  skipTutorial: () => Promise<void>
   completeTutorial: () => Promise<void>
   setContext: (context: any) => void
 }
@@ -84,14 +84,22 @@ export function TutorialProvider({
     }
   }
 
-  const skipTutorial = () => {
+  const skipTutorial = async () => {
     setIsActive(false)
     setCurrentStep(null)
+    setIsCompleted(true)
+    
     if (typeof window !== 'undefined') {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ skipped: true })
-      )
+      localStorage.removeItem(STORAGE_KEY)
+    }
+
+    // Mark as completed on server
+    try {
+      await fetch('/api/tutorial/complete', {
+        method: 'POST',
+      })
+    } catch (error) {
+      console.error('Failed to mark tutorial as skipped:', error)
     }
   }
 
