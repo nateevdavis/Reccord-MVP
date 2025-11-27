@@ -7,6 +7,7 @@ import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
 import Button from '@/components/ui/Button'
 import StripeConnectButton from '@/components/StripeConnectButton'
+import OnboardingChecklist from '@/components/OnboardingChecklist'
 
 type LinkItem = {
   label: string
@@ -35,6 +36,15 @@ function ProfilePageContent() {
   const [disconnectingSpotify, setDisconnectingSpotify] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [onboarding, setOnboarding] = useState<{
+    hasLists: boolean
+    hasMusicConnection: boolean
+    hasSubscribers: boolean
+  }>({
+    hasLists: false,
+    hasMusicConnection: false,
+    hasSubscribers: false,
+  })
 
   useEffect(() => {
     fetch('/api/me')
@@ -60,6 +70,9 @@ function ProfilePageContent() {
         }
         if (data.spotifyConnected !== undefined) {
           setSpotifyConnected(data.spotifyConnected)
+        }
+        if (data.onboarding) {
+          setOnboarding(data.onboarding)
         }
         setLoading(false)
         
@@ -231,6 +244,12 @@ function ProfilePageContent() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
       <h1 className="mb-8 text-2xl font-semibold text-gray-900">Profile</h1>
+
+      <OnboardingChecklist
+        hasLists={onboarding.hasLists}
+        hasMusicConnection={onboarding.hasMusicConnection}
+        hasSubscribers={onboarding.hasSubscribers}
+      />
 
       <div className="space-y-8">
         <section className="space-y-4">

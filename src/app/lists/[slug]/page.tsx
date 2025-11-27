@@ -5,6 +5,7 @@ import { getSession } from '@/lib/auth'
 import SubscribeButton from './SubscribeButton'
 import ShareableUrl from './ShareableUrl'
 import PaymentStatusHandler from './PaymentStatusHandler'
+import TutorialShareStep from './TutorialShareStep'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,6 +60,7 @@ export default async function ListPage({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
+      <TutorialShareStep />
       <div className="space-y-6">
         <PaymentStatusHandler />
         <div className="space-y-2 border-b border-gray-200 pb-4">
@@ -110,7 +112,9 @@ export default async function ListPage({
               </Link>
             </div>
             {list.isPublic && (
-              <ShareableUrl slug={list.slug} />
+              <div data-tutorial="share">
+                <ShareableUrl slug={list.slug} />
+              </div>
             )}
           </div>
         )}

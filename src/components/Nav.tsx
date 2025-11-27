@@ -4,10 +4,14 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import Button from './ui/Button'
+import { useTutorial } from '@/contexts/TutorialContext'
+import TutorialModal from './TutorialModal'
+import { getStepById } from '@/lib/tutorialSteps'
 
 export default function Nav() {
   const router = useRouter()
   const pathname = usePathname()
+  const { currentStep, isActive, startTutorial } = useTutorial()
   const [user, setUser] = useState<{ id: string; username: string } | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -69,9 +73,18 @@ export default function Nav() {
             </Link>
             {user && (
               <>
+                {isActive && currentStep === 'create-list' && getStepById('create-list') && (
+                  <TutorialModal step={getStepById('create-list')!} />
+                )}
                 <Link
-                  href="/create"
+                  href="/create?tutorial=start"
                   className="text-sm text-gray-600 hover:text-gray-900"
+                  data-tutorial="create-link"
+                  onClick={(e) => {
+                    if (!isActive) {
+                      startTutorial()
+                    }
+                  }}
                 >
                   Create
                 </Link>

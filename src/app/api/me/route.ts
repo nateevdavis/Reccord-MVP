@@ -62,6 +62,33 @@ export async function GET() {
       where: { userId },
     })
 
+    // Check if user has Apple Music connection
+    const appleMusicConnection = await prisma.appleMusicConnection.findUnique({
+      where: { userId },
+    })
+
+    // Check if user has any lists with paying subscribers
+    const listsWithSubscribers = await prisma.list.findMany({
+      where: {
+        ownerId: userId,
+      },
+      include: {
+        subscriptions: {
+          include: {
+            payments: {
+              where: {
+                status: 'COMPLETED',
+              },
+            },
+          },
+        },
+      },
+    })
+
+    const hasSubscribers = listsWithSubscribers.some(
+      (list) => list.subscriptions.some((sub) => sub.payments.length > 0)
+    )
+
     return NextResponse.json({
       user: {
         id: user.id,
@@ -69,10 +96,16 @@ export async function GET() {
         username: user.username,
         bio: user.bio,
         links: user.links,
+        tutorialCompleted: user.tutorialCompleted,
       },
       myLists,
       subscriptions,
       spotifyConnected: !!spotifyConnection,
+      onboarding: {
+        hasLists: myLists.length > 0,
+        hasMusicConnection: !!spotifyConnection || !!appleMusicConnection,
+        hasSubscribers,
+      },
     })
   } catch (error) {
     console.error('Error fetching user:', error)

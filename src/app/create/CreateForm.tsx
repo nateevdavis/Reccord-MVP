@@ -9,6 +9,9 @@ import Checkbox from '@/components/ui/Checkbox'
 import SpotifyConnectButton from '@/components/SpotifyConnectButton'
 import AppleMusicConnectButton from '@/components/AppleMusicConnectButton'
 import StripeConnectButton from '@/components/StripeConnectButton'
+import { useTutorial } from '@/contexts/TutorialContext'
+import TutorialModal from '@/components/TutorialModal'
+import { getStepById } from '@/lib/tutorialSteps'
 
 type ListItem = {
   name: string
@@ -21,6 +24,7 @@ type ListSourceType = 'MANUAL' | 'SPOTIFY' | 'APPLE_MUSIC'
 export default function CreateForm({ listId }: { listId: string | null }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { currentStep, isActive, startTutorial, nextStep, setContext } = useTutorial()
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -115,7 +119,27 @@ export default function CreateForm({ listId }: { listId: string | null }) {
         })
         .catch(() => setLoadingData(false))
     }
-  }, [listId, searchParams])
+
+    // Start tutorial if on create page (not edit) and tutorial hasn't started
+    if (!listId && !isActive) {
+      // Check if we should start tutorial (user clicked create link or landed on page)
+      const shouldStart = searchParams.get('tutorial') === 'start' || 
+                          (typeof window !== 'undefined' && window.location.pathname === '/create')
+      if (shouldStart) {
+        // Small delay to ensure page is rendered
+        setTimeout(() => {
+          startTutorial()
+        }, 100)
+      }
+    }
+  }, [listId, searchParams, isActive, startTutorial])
+
+  // Update tutorial context when sourceType changes
+  useEffect(() => {
+    if (isActive) {
+      setContext({ sourceType })
+    }
+  }, [sourceType, isActive, setContext])
 
   const addItem = () => {
     setItems([...items, { name: '', description: '', url: '' }])
@@ -201,6 +225,10 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       const data = await res.json()
 
       if (res.ok && data.list) {
+        // Advance to share step if in tutorial
+        if (isActive && currentStep === 'save') {
+          nextStep()
+        }
         router.push(`/lists/${data.list.slug}`)
       } else {
         console.error('Error saving list:', data)
@@ -229,38 +257,82 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       </h1>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <Input
-          label="Name your list"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
+        {isActive && currentStep === 'title' && getStepById('title') && (
+          <TutorialModal step={getStepById('title')!} />
+        )}
+        <div data-tutorial="title">
+          <Input
+            label="Name your list"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value)
+              // Advance tutorial if on title step
+              if (isActive && currentStep === 'title' && e.target.value.trim()) {
+                setTimeout(() => nextStep(), 500)
+              }
+            }}
+            required
+          />
+        </div>
 
-        <Textarea
-          label="Describe your list"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={4}
-        />
+        {isActive && currentStep === 'description' && getStepById('description') && (
+          <TutorialModal step={getStepById('description')!} />
+        )}
+        <div data-tutorial="description">
+          <Textarea
+            label="Describe your list"
+            value={description}
+            onChange={(e) => {
+              setDescription(e.target.value)
+              // Advance tutorial if on description step
+              if (isActive && currentStep === 'description' && e.target.value.trim()) {
+                setTimeout(() => nextStep(), 500)
+              }
+            }}
+            rows={4}
+          />
+        </div>
 
-        <Input
-          label="Monthly subscription price"
-          type="number"
-          step="0.01"
-          min="0"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          placeholder="0.00"
-        />
+        {isActive && currentStep === 'price' && getStepById('price') && (
+          <TutorialModal step={getStepById('price')!} />
+        )}
+        <div data-tutorial="price">
+          <Input
+            label="Monthly subscription price"
+            type="number"
+            step="0.01"
+            min="0"
+            value={price}
+            onChange={(e) => {
+              setPrice(e.target.value)
+              // Advance tutorial if on price step
+              if (isActive && currentStep === 'price' && e.target.value.trim()) {
+                setTimeout(() => nextStep(), 500)
+              }
+            }}
+            placeholder="0.00"
+          />
+        </div>
         <p className="text-sm text-gray-600">
           This is a monthly recurring subscription. A $0.50 platform fee will be added to each payment.
         </p>
 
-        <Checkbox
-          label="Make this list public"
-          checked={isPublic}
-          onChange={(e) => setIsPublic(e.target.checked)}
-        />
+        {isActive && currentStep === 'public' && getStepById('public') && (
+          <TutorialModal step={getStepById('public')!} />
+        )}
+        <div data-tutorial="public">
+          <Checkbox
+            label="Make this list public"
+            checked={isPublic}
+            onChange={(e) => {
+              setIsPublic(e.target.checked)
+              // Advance tutorial if on public step
+              if (isActive && currentStep === 'public') {
+                setTimeout(() => nextStep(), 500)
+              }
+            }}
+          />
+        </div>
         {isPublic && (!stripeConnected || stripeStatus !== 'active') && (
           <div className="mt-2 rounded border border-yellow-200 bg-yellow-50 p-3">
             <p className="mb-2 text-sm text-yellow-800">
@@ -270,14 +342,23 @@ export default function CreateForm({ listId }: { listId: string | null }) {
           </div>
         )}
 
-        <div>
+        {isActive && currentStep === 'source-type' && getStepById('source-type') && (
+          <TutorialModal step={getStepById('source-type')!} />
+        )}
+        <div data-tutorial="source-type">
           <label className="mb-2 block text-sm font-medium text-gray-700">
             How do you want to make your list?
           </label>
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setSourceType('MANUAL')}
+              onClick={() => {
+                setSourceType('MANUAL')
+                // Advance tutorial if on source-type step
+                if (isActive && currentStep === 'source-type') {
+                  setTimeout(() => nextStep({ sourceType: 'MANUAL' }), 500)
+                }
+              }}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                 sourceType === 'MANUAL'
                   ? 'bg-gray-900 text-white'
@@ -288,7 +369,13 @@ export default function CreateForm({ listId }: { listId: string | null }) {
             </button>
             <button
               type="button"
-              onClick={() => setSourceType('SPOTIFY')}
+              onClick={() => {
+                setSourceType('SPOTIFY')
+                // Advance tutorial if on source-type step
+                if (isActive && currentStep === 'source-type') {
+                  setTimeout(() => nextStep({ sourceType: 'SPOTIFY' }), 500)
+                }
+              }}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                 sourceType === 'SPOTIFY'
                   ? 'bg-gray-900 text-white'
@@ -299,7 +386,13 @@ export default function CreateForm({ listId }: { listId: string | null }) {
             </button>
             <button
               type="button"
-              onClick={() => setSourceType('APPLE_MUSIC')}
+              onClick={() => {
+                setSourceType('APPLE_MUSIC')
+                // Advance tutorial if on source-type step
+                if (isActive && currentStep === 'source-type') {
+                  setTimeout(() => nextStep({ sourceType: 'APPLE_MUSIC' }), 500)
+                }
+              }}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                 sourceType === 'APPLE_MUSIC'
                   ? 'bg-gray-900 text-white'
@@ -321,14 +414,19 @@ export default function CreateForm({ listId }: { listId: string | null }) {
             </div>
             {spotifyConnected && (
               <div>
-                <Input
-                  label="Spotify Playlist URL"
-                  type="url"
-                  value={playlistUrl}
-                  onChange={(e) => setPlaylistUrl(e.target.value)}
-                  placeholder="https://open.spotify.com/playlist/..."
-                  required
-                />
+                {isActive && currentStep === 'music-url' && getStepById('music-url') && (
+                  <TutorialModal step={getStepById('music-url')!} />
+                )}
+                <div data-tutorial="music-url">
+                  <Input
+                    label="Spotify Playlist URL"
+                    type="url"
+                    value={playlistUrl}
+                    onChange={(e) => setPlaylistUrl(e.target.value)}
+                    placeholder="https://open.spotify.com/playlist/..."
+                    required
+                  />
+                </div>
                 <p className="mt-1 text-sm text-gray-600">
                   Enter the URL of your Spotify playlist. We'll sync the top 10 songs.
                 </p>
@@ -347,14 +445,19 @@ export default function CreateForm({ listId }: { listId: string | null }) {
             </div>
             {appleMusicConnected && (
               <div>
-                <Input
-                  label="Apple Music Playlist URL"
-                  type="url"
-                  value={playlistUrl}
-                  onChange={(e) => setPlaylistUrl(e.target.value)}
-                  placeholder="https://music.apple.com/us/playlist/..."
-                  required
-                />
+                {isActive && currentStep === 'music-url' && getStepById('music-url') && (
+                  <TutorialModal step={getStepById('music-url')!} />
+                )}
+                <div data-tutorial="music-url">
+                  <Input
+                    label="Apple Music Playlist URL"
+                    type="url"
+                    value={playlistUrl}
+                    onChange={(e) => setPlaylistUrl(e.target.value)}
+                    placeholder="https://music.apple.com/us/playlist/..."
+                    required
+                  />
+                </div>
                 <p className="mt-1 text-sm text-gray-600">
                   Enter the URL of your Apple Music playlist. We'll sync the top 10 songs.
                 </p>
@@ -365,6 +468,9 @@ export default function CreateForm({ listId }: { listId: string | null }) {
 
         {sourceType === 'MANUAL' && (
           <div className="space-y-4">
+            {isActive && currentStep === 'manual-item' && getStepById('manual-item') && (
+              <TutorialModal step={getStepById('manual-item')!} />
+            )}
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium text-gray-700">
                 List items
@@ -382,6 +488,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
               <div
                 key={index}
                 className="space-y-3 rounded border border-gray-200 p-4"
+                data-tutorial={index === 0 ? 'manual-item' : undefined}
               >
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">
@@ -423,8 +530,11 @@ export default function CreateForm({ listId }: { listId: string | null }) {
           </div>
         )}
 
+        {isActive && currentStep === 'save' && getStepById('save') && (
+          <TutorialModal step={getStepById('save')!} />
+        )}
         <div className="flex gap-4">
-          <Button type="submit" disabled={loading}>
+          <Button type="submit" disabled={loading} data-tutorial="save">
             {loading ? 'Saving...' : 'Save List'}
           </Button>
           <Button
