@@ -188,14 +188,8 @@ export default function CreateForm({ listId }: { listId: string | null }) {
         setTimeout(() => {
           if (tutorialParam === 'start') {
             // If we're already on /create page with ?tutorial=start, skip 'create-list' step
-            // Start tutorial and immediately advance to 'title' step
-            startTutorial()
-            // Advance past 'create-list' step to 'title' step
-            setTimeout(() => {
-              if (currentStep === 'create-list') {
-                nextStep()
-              }
-            }, 150)
+            // and start directly at 'title' step since user already clicked "Create"
+            startTutorial('title')
           } else {
             // Normal flow: start with 'create-list' step (which shows in Nav)
             startTutorial()
@@ -207,10 +201,10 @@ export default function CreateForm({ listId }: { listId: string | null }) {
     return () => {
       abortController.abort()
     }
-    // Include tutorialParam and currentStep in dependencies so tutorial starts when URL param changes
+    // Include tutorialParam in dependencies so tutorial starts when URL param changes
     // Only depend on specific param values, not the whole searchParams object
     // This prevents infinite loops when searchParams object reference changes
-  }, [listId, spotifyConnectedParam, appleMusicConnectedParam, stripeSuccessParam, tutorialParam, isActive, isCompleted, startTutorial, currentStep, nextStep])
+  }, [listId, spotifyConnectedParam, appleMusicConnectedParam, stripeSuccessParam, tutorialParam, isActive, isCompleted, startTutorial])
 
 
   // Update tutorial context when sourceType changes

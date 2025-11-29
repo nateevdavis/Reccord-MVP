@@ -7,7 +7,7 @@ interface TutorialContextType {
   currentStep: TutorialStepId | null
   isActive: boolean
   isCompleted: boolean
-  startTutorial: () => void
+  startTutorial: (initialStep?: TutorialStepId) => void
   nextStep: (context?: any) => void
   skipTutorial: () => Promise<void>
   completeTutorial: () => Promise<void>
@@ -51,14 +51,14 @@ export function TutorialProvider({
     }
   }, [isCompleted])
 
-  const startTutorial = () => {
+  const startTutorial = (initialStep: TutorialStepId = 'create-list') => {
     if (isCompleted) return
-    setCurrentStep('create-list')
+    setCurrentStep(initialStep)
     setIsActive(true)
     if (typeof window !== 'undefined') {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ currentStep: 'create-list', started: true, skipped: false })
+        JSON.stringify({ currentStep: initialStep, started: true, skipped: false })
       )
     }
   }
