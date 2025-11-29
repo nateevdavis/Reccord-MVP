@@ -178,19 +178,23 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       // 2. OR it's their first visit to /create (haven't visited before)
       const shouldStart = tutorialParam === 'start' || !hasVisitedCreate
       
-      if (shouldStart) {
+      if (shouldStart && !isCompleted) {
         // Mark that user has visited /create (even if tutorial doesn't start)
         if (typeof window !== 'undefined') {
           localStorage.setItem(hasVisitedCreateKey, 'true')
         }
         
-        // Only start tutorial if not already completed/skipped
-        if (!isCompleted) {
-          // Small delay to ensure page is rendered
-          setTimeout(() => {
+        // Small delay to ensure page is rendered and context is ready
+        setTimeout(() => {
+          if (tutorialParam === 'start') {
+            // If we're already on /create page with ?tutorial=start, skip 'create-list' step
+            // and start directly at 'title' step since user already clicked "Create"
+            startTutorial('title')
+          } else {
+            // Normal flow: start with 'create-list' step (which shows in Nav)
             startTutorial()
-          }, 100)
-        }
+          }
+        }, 300)
       }
     }
 
