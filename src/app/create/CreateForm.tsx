@@ -199,7 +199,9 @@ export default function CreateForm({ listId }: { listId: string | null }) {
     }
     // Only depend on specific param values, not the whole searchParams object
     // This prevents infinite loops when searchParams object reference changes
-  }, [listId, spotifyConnectedParam, appleMusicConnectedParam, stripeSuccessParam, isActive, isCompleted, startTutorial])
+    // Note: startTutorial is intentionally omitted from deps to prevent infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listId, spotifyConnectedParam, appleMusicConnectedParam, stripeSuccessParam, tutorialParam, isActive, isCompleted])
 
 
   // Update tutorial context when sourceType changes
