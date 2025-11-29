@@ -165,14 +165,32 @@ export default function CreateForm({ listId }: { listId: string | null }) {
 
     // Start tutorial if on create page (not edit) and tutorial hasn't started
     if (!listId && !isActive && !isCompleted) {
-      // Check if we should start tutorial (user clicked create link or landed on page)
-      const shouldStart = searchParams.get('tutorial') === 'start' || 
-                          (typeof window !== 'undefined' && window.location.pathname === '/create')
+      const tutorialParam = searchParams.get('tutorial')
+      const hasVisitedCreateKey = 'reccord_has_visited_create'
+      
+      // Check if user has visited /create before
+      const hasVisitedCreate = typeof window !== 'undefined' 
+        ? localStorage.getItem(hasVisitedCreateKey) === 'true'
+        : false
+      
+      // Start tutorial if:
+      // 1. URL has ?tutorial=start param (explicit trigger from Nav or OnboardingChecklist)
+      // 2. OR it's their first visit to /create (haven't visited before)
+      const shouldStart = tutorialParam === 'start' || !hasVisitedCreate
+      
       if (shouldStart) {
-        // Small delay to ensure page is rendered
-        setTimeout(() => {
-          startTutorial()
-        }, 100)
+        // Mark that user has visited /create (even if tutorial doesn't start)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(hasVisitedCreateKey, 'true')
+        }
+        
+        // Only start tutorial if not already completed/skipped
+        if (!isCompleted) {
+          // Small delay to ensure page is rendered
+          setTimeout(() => {
+            startTutorial()
+          }, 100)
+        }
       }
     }
 

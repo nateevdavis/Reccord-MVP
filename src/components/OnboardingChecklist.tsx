@@ -85,7 +85,7 @@ export default function OnboardingChecklist({
             </div>
           </div>
           {!hasLists && (
-            <Link href="/create">
+            <Link href="/create?tutorial=start">
               <Button variant="secondary" className="text-sm">
                 Create a List
               </Button>
