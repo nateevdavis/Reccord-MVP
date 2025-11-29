@@ -189,12 +189,26 @@ export default function CreateForm({ listId }: { listId: string | null }) {
           if (tutorialParam === 'start') {
             // If we're already on /create page with ?tutorial=start, skip 'create-list' step
             // and start directly at 'title' step since user already clicked "Create"
+            console.log('Starting tutorial at title step')
             startTutorial('title')
           } else {
             // Normal flow: start with 'create-list' step (which shows in Nav)
+            console.log('Starting tutorial at create-list step')
             startTutorial()
           }
-        }, 300)
+        }, 500) // Increased delay to ensure DOM is ready
+      } else {
+        // Debug logging
+        if (typeof window !== 'undefined') {
+          console.log('Tutorial not starting:', {
+            listId,
+            isActive,
+            isCompleted,
+            tutorialParam,
+            hasVisitedCreate,
+            shouldStart
+          })
+        }
       }
     }
 

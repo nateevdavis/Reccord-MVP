@@ -28,53 +28,76 @@ export default function TutorialModal({ step }: TutorialModalProps) {
       return
     }
 
-    // Find target element
-    const target = document.querySelector(step.targetSelector) as HTMLElement
-    if (!target) {
-      setIsVisible(false)
-      return
+    // Find target element with retry mechanism
+    // Sometimes the element isn't ready immediately, so we retry a few times
+    let retryCount = 0
+    const maxRetries = 20 // Increased retries for slower renders
+    const retryDelay = 100
+    let timeoutId: NodeJS.Timeout | null = null
+    let cleanupTarget: HTMLElement | null = null
+
+    const findAndShowTarget = () => {
+      const target = document.querySelector(step.targetSelector) as HTMLElement
+      if (target) {
+        targetRef.current = target
+        cleanupTarget = target
+        
+        // Calculate position
+        const rect = target.getBoundingClientRect()
+        const scrollY = window.scrollY
+        const scrollX = window.scrollX
+
+        const positions: Record<string, { top?: number; left?: number; bottom?: number; right?: number }> = {
+          top: {
+            bottom: window.innerHeight - rect.top - scrollY + 12,
+            left: rect.left + scrollX + rect.width / 2,
+          },
+          bottom: {
+            top: rect.bottom + scrollY + 12,
+            left: rect.left + scrollX + rect.width / 2,
+          },
+          left: {
+            top: rect.top + scrollY + rect.height / 2,
+            right: window.innerWidth - rect.left - scrollX + 12,
+          },
+          right: {
+            top: rect.top + scrollY + rect.height / 2,
+            left: rect.right + scrollX + 12,
+          },
+        }
+
+        setPosition(positions[step.position] || positions.bottom)
+
+        // Highlight target element with subtle outline (non-blocking)
+        target.style.outline = '2px solid rgba(59, 130, 246, 0.4)'
+        target.style.outlineOffset = '2px'
+        target.style.transition = 'outline 0.2s'
+        target.style.pointerEvents = 'auto' // Ensure target remains clickable
+
+        setIsVisible(true)
+        return true
+      } else if (retryCount < maxRetries) {
+        retryCount++
+        timeoutId = setTimeout(findAndShowTarget, retryDelay)
+        return false
+      } else {
+        // Element not found after retries - log for debugging
+        console.warn(`Tutorial target not found after ${maxRetries} retries: ${step.targetSelector}`)
+        setIsVisible(false)
+        return false
+      }
     }
 
-    targetRef.current = target
-    setIsVisible(true)
-
-    // Calculate position
-    const rect = target.getBoundingClientRect()
-    const scrollY = window.scrollY
-    const scrollX = window.scrollX
-
-    const positions: Record<string, { top?: number; left?: number; bottom?: number; right?: number }> = {
-      top: {
-        bottom: window.innerHeight - rect.top - scrollY + 12,
-        left: rect.left + scrollX + rect.width / 2,
-      },
-      bottom: {
-        top: rect.bottom + scrollY + 12,
-        left: rect.left + scrollX + rect.width / 2,
-      },
-      left: {
-        top: rect.top + scrollY + rect.height / 2,
-        right: window.innerWidth - rect.left - scrollX + 12,
-      },
-      right: {
-        top: rect.top + scrollY + rect.height / 2,
-        left: rect.right + scrollX + 12,
-      },
-    }
-
-    setPosition(positions[step.position] || positions.bottom)
-
-    // Highlight target element with subtle outline (non-blocking)
-    target.style.outline = '2px solid rgba(59, 130, 246, 0.4)'
-    target.style.outlineOffset = '2px'
-    target.style.transition = 'outline 0.2s'
-    target.style.pointerEvents = 'auto' // Ensure target remains clickable
+    findAndShowTarget()
 
     return () => {
-      if (target) {
-        target.style.outline = ''
-        target.style.outlineOffset = ''
-        target.style.pointerEvents = ''
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+      if (cleanupTarget) {
+        cleanupTarget.style.outline = ''
+        cleanupTarget.style.outlineOffset = ''
+        cleanupTarget.style.pointerEvents = ''
       }
     }
   }, [isActive, currentStep, step.id, step.targetSelector, step.position])
