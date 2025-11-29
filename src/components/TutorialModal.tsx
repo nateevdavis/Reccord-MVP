@@ -23,6 +23,15 @@ export default function TutorialModal({ step }: TutorialModalProps) {
   const targetRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
+    // Debug logging
+    console.log('TutorialModal useEffect:', {
+      stepId: step.id,
+      isActive,
+      currentStep,
+      shouldShow: isActive && currentStep === step.id,
+      targetSelector: step.targetSelector
+    })
+
     if (!isActive || currentStep !== step.id) {
       setIsVisible(false)
       return
@@ -39,6 +48,7 @@ export default function TutorialModal({ step }: TutorialModalProps) {
     const findAndShowTarget = () => {
       const target = document.querySelector(step.targetSelector) as HTMLElement
       if (target) {
+        console.log(`✅ Found tutorial target for step "${step.id}":`, step.targetSelector, target)
         targetRef.current = target
         cleanupTarget = target
         
@@ -75,14 +85,25 @@ export default function TutorialModal({ step }: TutorialModalProps) {
         target.style.pointerEvents = 'auto' // Ensure target remains clickable
 
         setIsVisible(true)
+        console.log(`✅ Tutorial modal visible for step "${step.id}"`)
         return true
       } else if (retryCount < maxRetries) {
         retryCount++
+        if (retryCount % 5 === 0) {
+          console.log(`⏳ Retrying to find target (attempt ${retryCount}/${maxRetries}):`, step.targetSelector)
+        }
         timeoutId = setTimeout(findAndShowTarget, retryDelay)
         return false
       } else {
         // Element not found after retries - log for debugging
-        console.warn(`Tutorial target not found after ${maxRetries} retries: ${step.targetSelector}`)
+        console.error(`❌ Tutorial target not found after ${maxRetries} retries:`, step.targetSelector)
+        console.log('Available elements with data-tutorial:', 
+          Array.from(document.querySelectorAll('[data-tutorial]')).map(el => ({
+            selector: el.getAttribute('data-tutorial'),
+            tag: el.tagName,
+            className: el.className
+          }))
+        )
         setIsVisible(false)
         return false
       }

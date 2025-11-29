@@ -36,23 +36,32 @@ export function TutorialProvider({
     // Check localStorage for progress
     if (typeof window !== 'undefined' && !isCompleted) {
       const stored = localStorage.getItem(STORAGE_KEY)
+      console.log('TutorialContext: Checking localStorage', { stored, isCompleted, serverTutorialCompleted })
       if (stored) {
         try {
           const progress = JSON.parse(stored)
           if (progress.currentStep && !progress.skipped) {
+            console.log('TutorialContext: Resuming tutorial from localStorage', progress)
             setCurrentStep(progress.currentStep)
             setIsActive(true)
           }
         } catch (e) {
           // Invalid storage, clear it
+          console.warn('TutorialContext: Invalid localStorage data, clearing', e)
           localStorage.removeItem(STORAGE_KEY)
         }
       }
+    } else {
+      console.log('TutorialContext: Skipping localStorage check', { isCompleted, serverTutorialCompleted })
     }
   }, [isCompleted])
 
   const startTutorial = (initialStep: TutorialStepId = 'create-list') => {
-    if (isCompleted) return
+    if (isCompleted) {
+      console.warn('Cannot start tutorial: already completed', { isCompleted, initialStep })
+      return
+    }
+    console.log('🎯 TutorialContext.startTutorial called', { initialStep, isCompleted })
     setCurrentStep(initialStep)
     setIsActive(true)
     if (typeof window !== 'undefined') {
@@ -60,6 +69,7 @@ export function TutorialProvider({
         STORAGE_KEY,
         JSON.stringify({ currentStep: initialStep, started: true, skipped: false })
       )
+      console.log('✅ Tutorial started and saved to localStorage', { initialStep })
     }
   }
 

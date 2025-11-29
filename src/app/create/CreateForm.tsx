@@ -178,6 +178,19 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       // 2. OR it's their first visit to /create (haven't visited before)
       const shouldStart = tutorialParam === 'start' || !hasVisitedCreate
       
+      // Debug logging - always log to help diagnose
+      if (typeof window !== 'undefined') {
+        console.log('Tutorial Start Check:', {
+          listId,
+          isActive,
+          isCompleted,
+          tutorialParam,
+          hasVisitedCreate,
+          shouldStart,
+          willStart: shouldStart && !isCompleted
+        })
+      }
+      
       if (shouldStart && !isCompleted) {
         // Mark that user has visited /create (even if tutorial doesn't start)
         if (typeof window !== 'undefined') {
@@ -186,27 +199,42 @@ export default function CreateForm({ listId }: { listId: string | null }) {
         
         // Small delay to ensure page is rendered and context is ready
         setTimeout(() => {
+          // Double-check conditions before starting
+          if (isCompleted) {
+            console.warn('Tutorial marked as completed, not starting')
+            return
+          }
+          
           if (tutorialParam === 'start') {
             // If we're already on /create page with ?tutorial=start, skip 'create-list' step
             // and start directly at 'title' step since user already clicked "Create"
-            console.log('Starting tutorial at title step')
+            console.log('🚀 Starting tutorial at title step (from ?tutorial=start)')
             startTutorial('title')
           } else {
             // Normal flow: start with 'create-list' step (which shows in Nav)
-            console.log('Starting tutorial at create-list step')
+            console.log('🚀 Starting tutorial at create-list step (first visit)')
             startTutorial()
           }
+          
+          // Verify tutorial started after a short delay
+          setTimeout(() => {
+            console.log('Tutorial state after start:', {
+              isActive: true, // We just set it, so check context
+              currentStep: 'title' // Should be set by startTutorial
+            })
+          }, 100)
         }, 500) // Increased delay to ensure DOM is ready
       } else {
         // Debug logging
         if (typeof window !== 'undefined') {
-          console.log('Tutorial not starting:', {
+          console.log('❌ Tutorial not starting:', {
             listId,
             isActive,
             isCompleted,
             tutorialParam,
             hasVisitedCreate,
-            shouldStart
+            shouldStart,
+            reason: isCompleted ? 'already completed' : !shouldStart ? 'conditions not met' : 'unknown'
           })
         }
       }
@@ -338,11 +366,43 @@ export default function CreateForm({ listId }: { listId: string | null }) {
     )
   }
 
+  // Debug: Log tutorial state on render
+  useEffect(() => {
+    console.log('CreateForm render - Tutorial state:', {
+      currentStep,
+      isActive,
+      isCompleted,
+      tutorialParam,
+      hasDataAttribute: !!document.querySelector('[data-tutorial="title"]')
+    })
+  }, [currentStep, isActive, isCompleted, tutorialParam])
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
       <h1 className="mb-8 text-2xl font-semibold text-gray-900">
         {listId ? 'Edit List' : 'Create List'}
       </h1>
+
+      {/* Debug info - remove in production */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mb-4 rounded bg-gray-100 p-2 text-xs">
+          <div>Tutorial State: {isActive ? 'ACTIVE' : 'INACTIVE'}</div>
+          <div>Current Step: {currentStep || 'none'}</div>
+          <div>Completed: {isCompleted ? 'YES' : 'NO'}</div>
+          <div>Tutorial Param: {tutorialParam || 'none'}</div>
+          {!isActive && !isCompleted && (
+            <button
+              onClick={() => {
+                console.log('Manual tutorial start triggered')
+                startTutorial('title')
+              }}
+              className="mt-2 rounded bg-blue-500 px-2 py-1 text-white"
+            >
+              Force Start Tutorial
+            </button>
+          )}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {isActive && currentStep === 'title' && getStepById('title') && (
