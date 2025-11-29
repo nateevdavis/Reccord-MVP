@@ -11,6 +11,10 @@ export const metadata: Metadata = {
   description: 'Create and share curated lists',
 }
 
+// Mark layout as dynamic since it uses cookies for session checking
+// This prevents static generation errors
+export const dynamic = 'force-dynamic'
+
 export default async function RootLayout({
   children,
 }: {
@@ -21,24 +25,29 @@ export default async function RootLayout({
   let tutorialCompleted = false
   
   try {
-    const userId = await Promise.race([
-      getSession(),
-      new Promise<string | null>((resolve) => setTimeout(() => resolve(null), 1000))
-    ])
-    
-    if (userId) {
-      // Add timeout to prevent hanging - use Promise.race
-      const timeoutPromise = new Promise<boolean>((resolve) => {
-        setTimeout(() => resolve(false), 1500) // 1.5 second timeout
-      })
+    // Skip session check during build time
+    if (process.env.NEXT_PHASE === 'phase-production-build') {
+      tutorialCompleted = false
+    } else {
+      const userId = await Promise.race([
+        getSession(),
+        new Promise<string | null>((resolve) => setTimeout(() => resolve(null), 1000))
+      ])
       
-      const dbPromise = prisma.user.findUnique({
-        where: { id: userId },
-        select: { tutorialCompleted: true },
-      }).then((user) => user?.tutorialCompleted || false).catch(() => false)
-      
-      // Race between database query and timeout
-      tutorialCompleted = await Promise.race([dbPromise, timeoutPromise])
+      if (userId) {
+        // Add timeout to prevent hanging - use Promise.race
+        const timeoutPromise = new Promise<boolean>((resolve) => {
+          setTimeout(() => resolve(false), 1500) // 1.5 second timeout
+        })
+        
+        const dbPromise = prisma.user.findUnique({
+          where: { id: userId },
+          select: { tutorialCompleted: true },
+        }).then((user) => user?.tutorialCompleted || false).catch(() => false)
+        
+        // Race between database query and timeout
+        tutorialCompleted = await Promise.race([dbPromise, timeoutPromise])
+      }
     }
   } catch (error) {
     // If anything fails, default to false - never crash the app
