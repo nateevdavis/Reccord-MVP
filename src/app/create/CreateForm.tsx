@@ -44,6 +44,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
   const spotifyConnectedParam = searchParams.get('spotify_connected')
   const appleMusicConnectedParam = searchParams.get('apple_music_connected')
   const stripeSuccessParam = searchParams.get('stripe_connect_success')
+  const tutorialParam = searchParams.get('tutorial')
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -165,7 +166,6 @@ export default function CreateForm({ listId }: { listId: string | null }) {
 
     // Start tutorial if on create page (not edit) and tutorial hasn't started
     if (!listId && !isActive && !isCompleted) {
-      const tutorialParam = searchParams.get('tutorial')
       const hasVisitedCreateKey = 'reccord_has_visited_create'
       
       // Check if user has visited /create before
@@ -178,28 +178,39 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       // 2. OR it's their first visit to /create (haven't visited before)
       const shouldStart = tutorialParam === 'start' || !hasVisitedCreate
       
-      if (shouldStart) {
+      if (shouldStart && !isCompleted) {
         // Mark that user has visited /create (even if tutorial doesn't start)
         if (typeof window !== 'undefined') {
           localStorage.setItem(hasVisitedCreateKey, 'true')
         }
         
-        // Only start tutorial if not already completed/skipped
-        if (!isCompleted) {
-          // Small delay to ensure page is rendered
-          setTimeout(() => {
+        // If we're already on /create page, skip the 'create-list' step and go straight to 'title'
+        // Otherwise, start with 'create-list' step (which shows in Nav)
+        const initialStep = tutorialParam === 'start' ? 'title' : 'create-list'
+        
+        // Small delay to ensure page is rendered and context is ready
+        setTimeout(() => {
+          if (initialStep === 'title') {
+            // Start tutorial and immediately advance to title step
             startTutorial()
-          }, 100)
-        }
+            // Small delay before advancing to ensure tutorial is active
+            setTimeout(() => {
+              nextStep()
+            }, 100)
+          } else {
+            startTutorial()
+          }
+        }, 300)
       }
     }
 
     return () => {
       abortController.abort()
     }
+    // Include tutorialParam in dependencies so tutorial starts when URL param changes
     // Only depend on specific param values, not the whole searchParams object
     // This prevents infinite loops when searchParams object reference changes
-  }, [listId, spotifyConnectedParam, appleMusicConnectedParam, stripeSuccessParam, isActive, isCompleted, startTutorial])
+  }, [listId, spotifyConnectedParam, appleMusicConnectedParam, stripeSuccessParam, tutorialParam, isActive, isCompleted, startTutorial])
 
 
   // Update tutorial context when sourceType changes
