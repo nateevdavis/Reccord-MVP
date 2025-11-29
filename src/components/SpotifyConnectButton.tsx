@@ -42,7 +42,8 @@ export default function SpotifyConnectButton() {
     setLoading(true)
     const currentUrl = window.location.href
     const returnUrl = new URL(currentUrl).pathname + new URL(currentUrl).search
-    router.push(`/api/auth/spotify/authorize?returnUrl=${encodeURIComponent(returnUrl)}`)
+    // Use window.location.href for OAuth redirects to avoid CORS issues with router.push()
+    window.location.href = `/api/auth/spotify/authorize?returnUrl=${encodeURIComponent(returnUrl)}`
   }
 
   if (isConnected) {
