@@ -54,6 +54,17 @@ export async function GET(request: NextRequest) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    // Handle database connection errors gracefully
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    if (errorMessage.includes('Max client connections') || 
+        errorMessage.includes("Can't reach database server") ||
+        errorMessage.includes('P1001')) {
+      console.error('Database connection error in stripe-connect status:', errorMessage)
+      return NextResponse.json({
+        connected: false,
+        status: 'error',
+      })
+    }
     console.error('Error checking Stripe Connect status:', error)
     return NextResponse.json({
       connected: false,

@@ -38,9 +38,8 @@ Available env vars starting with 'DATABASE': ${Object.keys(process.env).filter(k
     throw new Error(errorMessage)
   }
 
-  // Create Prisma Client - it will use DATABASE_URL from environment
-  // If DATABASE_URL is missing during build, this will fail, but that's expected
-  // The build should have DATABASE_URL set in Vercel's environment variables
+  // Create Prisma Client - use DATABASE_URL as-is (should already have pooling config)
+  // For Supabase, ensure you're using port 6543 with ?pgbouncer=true in your DATABASE_URL
   globalForPrisma.prisma = new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   })
