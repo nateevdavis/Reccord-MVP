@@ -165,7 +165,9 @@ export default function CreateForm({ listId }: { listId: string | null }) {
     }
 
     // Start tutorial if on create page (not edit) and tutorial hasn't started
-    if (!listId && !isActive && !isCompleted) {
+    // IMPORTANT: Check if tutorial is already active from localStorage resume
+    // If it is, don't try to start it again
+    if (!listId && !isCompleted) {
       const hasVisitedCreateKey = 'reccord_has_visited_create'
       
       // Check if user has visited /create before
@@ -174,9 +176,9 @@ export default function CreateForm({ listId }: { listId: string | null }) {
         : false
       
       // Start tutorial if:
-      // 1. URL has ?tutorial=start param (explicit trigger from Nav or OnboardingChecklist)
-      // 2. OR it's their first visit to /create (haven't visited before)
-      const shouldStart = tutorialParam === 'start' || !hasVisitedCreate
+      // 1. Tutorial is not already active (from localStorage resume)
+      // 2. AND (URL has ?tutorial=start param OR it's their first visit to /create)
+      const shouldStart = !isActive && (tutorialParam === 'start' || !hasVisitedCreate)
       
       // Debug logging - always log to help diagnose
       if (typeof window !== 'undefined') {
@@ -187,7 +189,8 @@ export default function CreateForm({ listId }: { listId: string | null }) {
           tutorialParam,
           hasVisitedCreate,
           shouldStart,
-          willStart: shouldStart && !isCompleted
+          willStart: shouldStart && !isCompleted,
+          currentStep
         })
       }
       
@@ -202,6 +205,11 @@ export default function CreateForm({ listId }: { listId: string | null }) {
           // Double-check conditions before starting
           if (isCompleted) {
             console.warn('Tutorial marked as completed, not starting')
+            return
+          }
+          
+          if (isActive) {
+            console.log('Tutorial already active, not starting again', { currentStep })
             return
           }
           
@@ -220,7 +228,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
           setTimeout(() => {
             console.log('Tutorial state after start:', {
               isActive: true, // We just set it, so check context
-              currentStep: 'title' // Should be set by startTutorial
+              currentStep: tutorialParam === 'start' ? 'title' : 'create-list' // Should be set by startTutorial
             })
           }, 100)
         }, 500) // Increased delay to ensure DOM is ready
@@ -234,7 +242,14 @@ export default function CreateForm({ listId }: { listId: string | null }) {
             tutorialParam,
             hasVisitedCreate,
             shouldStart,
-            reason: isCompleted ? 'already completed' : !shouldStart ? 'conditions not met' : 'unknown'
+            currentStep,
+            reason: isCompleted 
+              ? 'already completed' 
+              : isActive 
+              ? 'already active (resumed from localStorage?)' 
+              : !shouldStart 
+              ? 'conditions not met' 
+              : 'unknown'
           })
         }
       }
@@ -366,16 +381,31 @@ export default function CreateForm({ listId }: { listId: string | null }) {
     )
   }
 
-  // Debug: Log tutorial state on render
+  // Debug: Log tutorial state on render and handle stale localStorage
   useEffect(() => {
-    console.log('CreateForm render - Tutorial state:', {
-      currentStep,
-      isActive,
-      isCompleted,
-      tutorialParam,
-      hasDataAttribute: !!document.querySelector('[data-tutorial="title"]')
-    })
-  }, [currentStep, isActive, isCompleted, tutorialParam])
+    // Only log if we're on the create page (not editing)
+    if (!listId) {
+      console.log('CreateForm render - Tutorial state:', {
+        currentStep,
+        isActive,
+        isCompleted,
+        tutorialParam,
+        hasDataAttribute: typeof document !== 'undefined' ? !!document.querySelector('[data-tutorial="title"]') : false,
+        localStorageProgress: typeof window !== 'undefined' ? localStorage.getItem('reccord_tutorial_progress') : null
+      })
+      
+      // If tutorial is active but on a step that doesn't exist on this page (like 'create-list' or 'share'),
+      // it's probably stale data - clear it and restart
+      if (isActive && currentStep && typeof window !== 'undefined') {
+        const validStepsForCreatePage = ['title', 'description', 'price', 'public', 'source-type', 'music-url', 'manual-item', 'save']
+        if (!validStepsForCreatePage.includes(currentStep)) {
+          console.warn(`Tutorial step "${currentStep}" is not valid for /create page, clearing stale localStorage`)
+          localStorage.removeItem('reccord_tutorial_progress')
+          // Don't restart here - let the normal flow handle it
+        }
+      }
+    }
+  }, [currentStep, isActive, isCompleted, tutorialParam, listId])
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">

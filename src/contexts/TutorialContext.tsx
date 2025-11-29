@@ -34,27 +34,65 @@ export function TutorialProvider({
 
   useEffect(() => {
     // Check localStorage for progress
-    if (typeof window !== 'undefined' && !isCompleted) {
+    if (typeof window !== 'undefined') {
       const stored = localStorage.getItem(STORAGE_KEY)
-      console.log('TutorialContext: Checking localStorage', { stored, isCompleted, serverTutorialCompleted })
-      if (stored) {
+      const currentPath = window.location.pathname
+      
+      console.log('TutorialContext: Checking localStorage', { 
+        stored, 
+        isCompleted, 
+        serverTutorialCompleted,
+        currentPath,
+        willResume: !isCompleted && stored 
+      })
+      
+      // If server says tutorial is completed, clear any stale localStorage
+      if (serverTutorialCompleted && stored) {
+        console.log('TutorialContext: Server says completed, clearing stale localStorage')
+        localStorage.removeItem(STORAGE_KEY)
+        setIsCompleted(true)
+        return
+      }
+      
+      // Only resume if not completed and we have valid progress
+      if (!isCompleted && stored) {
         try {
           const progress = JSON.parse(stored)
+          // Only resume if we have a valid step and it wasn't skipped
           if (progress.currentStep && !progress.skipped) {
-            console.log('TutorialContext: Resuming tutorial from localStorage', progress)
-            setCurrentStep(progress.currentStep)
-            setIsActive(true)
+            // Check if the step makes sense for the current page
+            // 'create-list' should only be active on home page, not /create
+            // 'share' should only be active on list detail page
+            const step = progress.currentStep
+            const isStepValidForPage = 
+              (step === 'create-list' && currentPath === '/') ||
+              (step === 'share' && currentPath.startsWith('/lists/')) ||
+              (['title', 'description', 'price', 'public', 'source-type', 'music-url', 'manual-item', 'save'].includes(step) && currentPath === '/create')
+            
+            if (isStepValidForPage) {
+              console.log('TutorialContext: Resuming tutorial from localStorage', progress)
+              setCurrentStep(progress.currentStep)
+              setIsActive(true)
+            } else {
+              // Step doesn't match current page - clear stale data
+              console.log(`TutorialContext: Step "${step}" doesn't match current page "${currentPath}", clearing stale localStorage`)
+              localStorage.removeItem(STORAGE_KEY)
+            }
+          } else {
+            // Stale or invalid progress, clear it
+            console.log('TutorialContext: Clearing stale/invalid progress', progress)
+            localStorage.removeItem(STORAGE_KEY)
           }
         } catch (e) {
           // Invalid storage, clear it
           console.warn('TutorialContext: Invalid localStorage data, clearing', e)
           localStorage.removeItem(STORAGE_KEY)
         }
+      } else if (!stored && !isCompleted) {
+        console.log('TutorialContext: No localStorage data, tutorial can start fresh')
       }
-    } else {
-      console.log('TutorialContext: Skipping localStorage check', { isCompleted, serverTutorialCompleted })
     }
-  }, [isCompleted])
+  }, [isCompleted, serverTutorialCompleted])
 
   const startTutorial = (initialStep: TutorialStepId = 'create-list') => {
     if (isCompleted) {
