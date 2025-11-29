@@ -41,37 +41,69 @@ export default function CreateForm({ listId }: { listId: string | null }) {
   const [loadingData, setLoadingData] = useState(!!listId)
 
   useEffect(() => {
-    // Check Spotify connection status
-    fetch('/api/auth/spotify/status')
-      .then((res) => res.json())
-      .then((data) => {
-        setSpotifyConnected(data.connected || false)
-      })
-      .catch(() => {
-        setSpotifyConnected(false)
-      })
+    const abortController = new AbortController()
+    
+    // Batch status checks with small delays to avoid overwhelming the browser
+    const checkStatus = async () => {
+      try {
+        // Check Spotify connection status
+        const spotifyRes = await fetch('/api/auth/spotify/status', {
+          signal: abortController.signal,
+        })
+        if (!abortController.signal.aborted) {
+          const spotifyData = await spotifyRes.json()
+          setSpotifyConnected(spotifyData.connected || false)
+        }
+      } catch (error) {
+        if (!abortController.signal.aborted) {
+          setSpotifyConnected(false)
+        }
+      }
 
-    // Check Apple Music connection status
-    fetch('/api/auth/apple-music/status')
-      .then((res) => res.json())
-      .then((data) => {
-        setAppleMusicConnected(data.connected || false)
-      })
-      .catch(() => {
-        setAppleMusicConnected(false)
-      })
+      // Small delay before next request
+      await new Promise(resolve => setTimeout(resolve, 100))
 
-    // Check Stripe Connect connection status
-    fetch('/api/stripe-connect/status')
-      .then((res) => res.json())
-      .then((data) => {
-        setStripeConnected(data.connected || false)
-        setStripeStatus(data.status || 'not_connected')
-      })
-      .catch(() => {
-        setStripeConnected(false)
-        setStripeStatus('not_connected')
-      })
+      try {
+        // Check Apple Music connection status
+        const appleRes = await fetch('/api/auth/apple-music/status', {
+          signal: abortController.signal,
+        })
+        if (!abortController.signal.aborted) {
+          const appleData = await appleRes.json()
+          setAppleMusicConnected(appleData.connected || false)
+        }
+      } catch (error) {
+        if (!abortController.signal.aborted) {
+          setAppleMusicConnected(false)
+        }
+      }
+
+      // Small delay before next request
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      try {
+        // Check Stripe Connect connection status
+        const stripeRes = await fetch('/api/stripe-connect/status', {
+          signal: abortController.signal,
+        })
+        if (!abortController.signal.aborted) {
+          const stripeData = await stripeRes.json()
+          setStripeConnected(stripeData.connected || false)
+          setStripeStatus(stripeData.status || 'not_connected')
+        }
+      } catch (error) {
+        if (!abortController.signal.aborted) {
+          setStripeConnected(false)
+          setStripeStatus('not_connected')
+        }
+      }
+    }
+
+    checkStatus()
+
+    return () => {
+      abortController.abort()
+    }
 
     // Check if we just connected (from callback)
     if (searchParams.get('spotify_connected') === '1') {

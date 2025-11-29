@@ -19,25 +19,36 @@ export default function StripeConnectButton(props: StripeConnectButtonProps = {}
   const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    // Check if Stripe Connect is connected
-    fetch('/api/stripe-connect/status')
-      .then((res) => res.json())
-      .then((data) => {
-        setIsConnected(data.connected || false)
-        setStatus(data.status || 'not_connected')
-        setChecking(false)
-      })
-      .catch(() => {
-        setIsConnected(false)
-        setStatus('not_connected')
-        setChecking(false)
-      })
+    const abortController = new AbortController()
 
-    // Check if we just connected (from callback)
+    // Check if we just connected (from callback) - check this first
     if (searchParams.get('stripe_connect_success') === '1') {
       setIsConnected(true)
       setStatus('active')
       setChecking(false)
+      return
+    }
+
+    // Check if Stripe Connect is connected
+    fetch('/api/stripe-connect/status', { signal: abortController.signal })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!abortController.signal.aborted) {
+          setIsConnected(data.connected || false)
+          setStatus(data.status || 'not_connected')
+          setChecking(false)
+        }
+      })
+      .catch(() => {
+        if (!abortController.signal.aborted) {
+          setIsConnected(false)
+          setStatus('not_connected')
+          setChecking(false)
+        }
+      })
+
+    return () => {
+      abortController.abort()
     }
   }, [searchParams])
 

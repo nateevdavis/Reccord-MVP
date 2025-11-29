@@ -11,19 +11,30 @@ export default function SpotifyConnectButton() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    // Check if Spotify is connected
-    fetch('/api/auth/spotify/status')
-      .then((res) => res.json())
-      .then((data) => {
-        setIsConnected(data.connected || false)
-      })
-      .catch(() => {
-        setIsConnected(false)
-      })
+    const abortController = new AbortController()
 
-    // Check if we just connected (from callback)
+    // Check if we just connected (from callback) - check this first
     if (searchParams.get('spotify_connected') === '1') {
       setIsConnected(true)
+      return
+    }
+
+    // Check if Spotify is connected
+    fetch('/api/auth/spotify/status', { signal: abortController.signal })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!abortController.signal.aborted) {
+          setIsConnected(data.connected || false)
+        }
+      })
+      .catch(() => {
+        if (!abortController.signal.aborted) {
+          setIsConnected(false)
+        }
+      })
+
+    return () => {
+      abortController.abort()
     }
   }, [searchParams])
 

@@ -18,21 +18,33 @@ export default function AppleMusicConnectButton() {
   const [initializing, setInitializing] = useState(true)
 
   useEffect(() => {
-    // Check if Apple Music is connected
-    fetch('/api/auth/apple-music/status')
-      .then((res) => res.json())
-      .then((data) => {
-        setIsConnected(data.connected || false)
-        setInitializing(false)
-      })
-      .catch(() => {
-        setIsConnected(false)
-        setInitializing(false)
-      })
+    const abortController = new AbortController()
 
-    // Check if we just connected (from callback)
+    // Check if we just connected (from callback) - check this first
     if (searchParams.get('apple_music_connected') === '1') {
       setIsConnected(true)
+      setInitializing(false)
+      return
+    }
+
+    // Check if Apple Music is connected
+    fetch('/api/auth/apple-music/status', { signal: abortController.signal })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!abortController.signal.aborted) {
+          setIsConnected(data.connected || false)
+          setInitializing(false)
+        }
+      })
+      .catch(() => {
+        if (!abortController.signal.aborted) {
+          setIsConnected(false)
+          setInitializing(false)
+        }
+      })
+
+    return () => {
+      abortController.abort()
     }
   }, [searchParams])
 
