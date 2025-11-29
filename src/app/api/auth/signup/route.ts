@@ -96,8 +96,20 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+    
     console.error('Error during signup:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    
+    // Check if it's a database connection error
+    if (errorMessage.includes("Can't reach database server") || 
+        errorMessage.includes('P1001') ||
+        errorMessage.includes('connection')) {
+      return NextResponse.json(
+        { error: 'Database connection error. Please try again in a moment.' },
+        { status: 503 }
+      )
+    }
+    
     console.error('Error details:', errorMessage)
     return NextResponse.json(
       { error: `Failed to create account: ${errorMessage}` },

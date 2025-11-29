@@ -109,6 +109,23 @@ export async function GET() {
     })
   } catch (error) {
     console.error('Error fetching user:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    
+    // Check if it's a database connection error
+    if (errorMessage.includes("Can't reach database server") || 
+        errorMessage.includes('P1001') ||
+        errorMessage.includes('connection')) {
+      return NextResponse.json(
+        { error: 'Database connection error. Please try again in a moment.' },
+        { status: 503 }
+      )
+    }
+    
+    // Check if it's an auth error
+    if (errorMessage === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    
     return NextResponse.json(
       { error: 'Failed to fetch user' },
       { status: 500 }
@@ -159,6 +176,17 @@ export async function PUT(request: NextRequest) {
     }
     console.error('Error updating user:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    
+    // Check if it's a database connection error
+    if (errorMessage.includes("Can't reach database server") || 
+        errorMessage.includes('P1001') ||
+        errorMessage.includes('connection')) {
+      return NextResponse.json(
+        { error: 'Database connection error. Please try again in a moment.' },
+        { status: 503 }
+      )
+    }
+    
     console.error('Error details:', errorMessage)
     return NextResponse.json(
       { error: `Failed to update user: ${errorMessage}` },
