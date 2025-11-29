@@ -43,6 +43,18 @@ export default function CreateForm({ listId }: { listId: string | null }) {
   useEffect(() => {
     const abortController = new AbortController()
     
+    // Check if we just connected (from callback) - check this first
+    if (searchParams.get('spotify_connected') === '1') {
+      setSpotifyConnected(true)
+    }
+    if (searchParams.get('apple_music_connected') === '1') {
+      setAppleMusicConnected(true)
+    }
+    if (searchParams.get('stripe_connect_success') === '1') {
+      setStripeConnected(true)
+      setStripeStatus('active')
+    }
+
     // Batch status checks with small delays to avoid overwhelming the browser
     const checkStatus = async () => {
       try {
@@ -101,27 +113,11 @@ export default function CreateForm({ listId }: { listId: string | null }) {
 
     checkStatus()
 
-    return () => {
-      abortController.abort()
-    }
-
-    // Check if we just connected (from callback)
-    if (searchParams.get('spotify_connected') === '1') {
-      setSpotifyConnected(true)
-    }
-    if (searchParams.get('apple_music_connected') === '1') {
-      setAppleMusicConnected(true)
-    }
-    if (searchParams.get('stripe_connect_success') === '1') {
-      setStripeConnected(true)
-      setStripeStatus('active')
-    }
-
     if (listId) {
-      fetch(`/api/lists/${listId}`)
+      fetch(`/api/lists/${listId}`, { signal: abortController.signal })
         .then((res) => res.json())
         .then((data) => {
-          if (data.list) {
+          if (!abortController.signal.aborted && data.list) {
             setName(data.list.name)
             setDescription(data.list.description)
             setPrice((data.list.priceCents / 100).toString())
@@ -146,10 +142,14 @@ export default function CreateForm({ listId }: { listId: string | null }) {
                   }))
               )
             }
+            setLoadingData(false)
           }
-          setLoadingData(false)
         })
-        .catch(() => setLoadingData(false))
+        .catch(() => {
+          if (!abortController.signal.aborted) {
+            setLoadingData(false)
+          }
+        })
     }
 
     // Start tutorial if on create page (not edit) and tutorial hasn't started
@@ -163,6 +163,10 @@ export default function CreateForm({ listId }: { listId: string | null }) {
           startTutorial()
         }, 100)
       }
+    }
+
+    return () => {
+      abortController.abort()
     }
   }, [listId, searchParams, isActive, isCompleted, startTutorial])
 
