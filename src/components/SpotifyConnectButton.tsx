@@ -9,14 +9,28 @@ export default function SpotifyConnectButton() {
   const searchParams = useSearchParams()
   const [isConnected, setIsConnected] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [hasChecked, setHasChecked] = useState(false)
+
+  // Extract param value outside useEffect to prevent infinite loops
+  const spotifyConnectedParam = searchParams.get('spotify_connected')
 
   useEffect(() => {
     const abortController = new AbortController()
 
     // Check if we just connected (from callback) - check this first
-    if (searchParams.get('spotify_connected') === '1') {
+    if (spotifyConnectedParam === '1') {
       setIsConnected(true)
-      return
+      setHasChecked(true)
+      return () => {
+        abortController.abort()
+      }
+    }
+
+    // Only check status once to prevent infinite loops
+    if (hasChecked) {
+      return () => {
+        abortController.abort()
+      }
     }
 
     // Check if Spotify is connected
@@ -25,18 +39,21 @@ export default function SpotifyConnectButton() {
       .then((data) => {
         if (!abortController.signal.aborted) {
           setIsConnected(data.connected || false)
+          setHasChecked(true)
         }
       })
       .catch(() => {
         if (!abortController.signal.aborted) {
           setIsConnected(false)
+          setHasChecked(true)
         }
       })
 
     return () => {
       abortController.abort()
     }
-  }, [searchParams])
+    // Only depend on the specific param value, not the whole searchParams object
+  }, [spotifyConnectedParam, hasChecked])
 
   const handleConnect = () => {
     setLoading(true)

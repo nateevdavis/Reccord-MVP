@@ -40,78 +40,89 @@ export default function CreateForm({ listId }: { listId: string | null }) {
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(!!listId)
 
+  // Extract specific params outside useEffect to avoid infinite loops
+  const spotifyConnectedParam = searchParams.get('spotify_connected')
+  const appleMusicConnectedParam = searchParams.get('apple_music_connected')
+  const stripeSuccessParam = searchParams.get('stripe_connect_success')
+
   useEffect(() => {
     const abortController = new AbortController()
     
     // Check if we just connected (from callback) - check this first
-    if (searchParams.get('spotify_connected') === '1') {
+    if (spotifyConnectedParam === '1') {
       setSpotifyConnected(true)
     }
-    if (searchParams.get('apple_music_connected') === '1') {
+    if (appleMusicConnectedParam === '1') {
       setAppleMusicConnected(true)
     }
-    if (searchParams.get('stripe_connect_success') === '1') {
+    if (stripeSuccessParam === '1') {
       setStripeConnected(true)
       setStripeStatus('active')
     }
 
-    // Batch status checks with small delays to avoid overwhelming the browser
-    const checkStatus = async () => {
-      try {
-        // Check Spotify connection status
-        const spotifyRes = await fetch('/api/auth/spotify/status', {
-          signal: abortController.signal,
-        })
-        if (!abortController.signal.aborted) {
-          const spotifyData = await spotifyRes.json()
-          setSpotifyConnected(spotifyData.connected || false)
+    // Only check status via API if we don't have URL params indicating connection
+    // This prevents unnecessary API calls when we already know the status
+    const shouldCheckStatus = !spotifyConnectedParam && !appleMusicConnectedParam && !stripeSuccessParam
+
+    if (shouldCheckStatus) {
+      // Batch status checks with small delays to avoid overwhelming the browser
+      const checkStatus = async () => {
+        try {
+          // Check Spotify connection status
+          const spotifyRes = await fetch('/api/auth/spotify/status', {
+            signal: abortController.signal,
+          })
+          if (!abortController.signal.aborted) {
+            const spotifyData = await spotifyRes.json()
+            setSpotifyConnected(spotifyData.connected || false)
+          }
+        } catch (error) {
+          if (!abortController.signal.aborted) {
+            setSpotifyConnected(false)
+          }
         }
-      } catch (error) {
-        if (!abortController.signal.aborted) {
-          setSpotifyConnected(false)
+
+        // Small delay before next request
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        try {
+          // Check Apple Music connection status
+          const appleRes = await fetch('/api/auth/apple-music/status', {
+            signal: abortController.signal,
+          })
+          if (!abortController.signal.aborted) {
+            const appleData = await appleRes.json()
+            setAppleMusicConnected(appleData.connected || false)
+          }
+        } catch (error) {
+          if (!abortController.signal.aborted) {
+            setAppleMusicConnected(false)
+          }
+        }
+
+        // Small delay before next request
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        try {
+          // Check Stripe Connect connection status
+          const stripeRes = await fetch('/api/stripe-connect/status', {
+            signal: abortController.signal,
+          })
+          if (!abortController.signal.aborted) {
+            const stripeData = await stripeRes.json()
+            setStripeConnected(stripeData.connected || false)
+            setStripeStatus(stripeData.status || 'not_connected')
+          }
+        } catch (error) {
+          if (!abortController.signal.aborted) {
+            setStripeConnected(false)
+            setStripeStatus('not_connected')
+          }
         }
       }
 
-      // Small delay before next request
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      try {
-        // Check Apple Music connection status
-        const appleRes = await fetch('/api/auth/apple-music/status', {
-          signal: abortController.signal,
-        })
-        if (!abortController.signal.aborted) {
-          const appleData = await appleRes.json()
-          setAppleMusicConnected(appleData.connected || false)
-        }
-      } catch (error) {
-        if (!abortController.signal.aborted) {
-          setAppleMusicConnected(false)
-        }
-      }
-
-      // Small delay before next request
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      try {
-        // Check Stripe Connect connection status
-        const stripeRes = await fetch('/api/stripe-connect/status', {
-          signal: abortController.signal,
-        })
-        if (!abortController.signal.aborted) {
-          const stripeData = await stripeRes.json()
-          setStripeConnected(stripeData.connected || false)
-          setStripeStatus(stripeData.status || 'not_connected')
-        }
-      } catch (error) {
-        if (!abortController.signal.aborted) {
-          setStripeConnected(false)
-          setStripeStatus('not_connected')
-        }
-      }
+      checkStatus()
     }
-
-    checkStatus()
 
     if (listId) {
       fetch(`/api/lists/${listId}`, { signal: abortController.signal })
@@ -168,7 +179,9 @@ export default function CreateForm({ listId }: { listId: string | null }) {
     return () => {
       abortController.abort()
     }
-  }, [listId, searchParams, isActive, isCompleted, startTutorial])
+    // Only depend on specific param values, not the whole searchParams object
+    // This prevents infinite loops when searchParams object reference changes
+  }, [listId, spotifyConnectedParam, appleMusicConnectedParam, stripeSuccessParam, isActive, isCompleted, startTutorial])
 
 
   // Update tutorial context when sourceType changes

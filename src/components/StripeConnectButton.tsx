@@ -17,16 +17,30 @@ export default function StripeConnectButton(props: StripeConnectButtonProps = {}
   const [status, setStatus] = useState<string>('not_connected')
   const [loading, setLoading] = useState(false)
   const [checking, setChecking] = useState(true)
+  const [hasChecked, setHasChecked] = useState(false)
+
+  // Extract param value outside useEffect to prevent infinite loops
+  const stripeSuccessParam = searchParams.get('stripe_connect_success')
 
   useEffect(() => {
     const abortController = new AbortController()
 
     // Check if we just connected (from callback) - check this first
-    if (searchParams.get('stripe_connect_success') === '1') {
+    if (stripeSuccessParam === '1') {
       setIsConnected(true)
       setStatus('active')
       setChecking(false)
-      return
+      setHasChecked(true)
+      return () => {
+        abortController.abort()
+      }
+    }
+
+    // Only check status once to prevent infinite loops
+    if (hasChecked) {
+      return () => {
+        abortController.abort()
+      }
     }
 
     // Check if Stripe Connect is connected
@@ -37,6 +51,7 @@ export default function StripeConnectButton(props: StripeConnectButtonProps = {}
           setIsConnected(data.connected || false)
           setStatus(data.status || 'not_connected')
           setChecking(false)
+          setHasChecked(true)
         }
       })
       .catch(() => {
@@ -44,13 +59,15 @@ export default function StripeConnectButton(props: StripeConnectButtonProps = {}
           setIsConnected(false)
           setStatus('not_connected')
           setChecking(false)
+          setHasChecked(true)
         }
       })
 
     return () => {
       abortController.abort()
     }
-  }, [searchParams])
+    // Only depend on the specific param value, not the whole searchParams object
+  }, [stripeSuccessParam, hasChecked])
 
   const handleConnect = async () => {
     setLoading(true)

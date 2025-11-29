@@ -16,15 +16,29 @@ export default function AppleMusicConnectButton() {
   const [isConnected, setIsConnected] = useState(false)
   const [loading, setLoading] = useState(false)
   const [initializing, setInitializing] = useState(true)
+  const [hasChecked, setHasChecked] = useState(false)
+
+  // Extract param value outside useEffect to prevent infinite loops
+  const appleMusicConnectedParam = searchParams.get('apple_music_connected')
 
   useEffect(() => {
     const abortController = new AbortController()
 
     // Check if we just connected (from callback) - check this first
-    if (searchParams.get('apple_music_connected') === '1') {
+    if (appleMusicConnectedParam === '1') {
       setIsConnected(true)
       setInitializing(false)
-      return
+      setHasChecked(true)
+      return () => {
+        abortController.abort()
+      }
+    }
+
+    // Only check status once to prevent infinite loops
+    if (hasChecked) {
+      return () => {
+        abortController.abort()
+      }
     }
 
     // Check if Apple Music is connected
@@ -34,19 +48,22 @@ export default function AppleMusicConnectButton() {
         if (!abortController.signal.aborted) {
           setIsConnected(data.connected || false)
           setInitializing(false)
+          setHasChecked(true)
         }
       })
       .catch(() => {
         if (!abortController.signal.aborted) {
           setIsConnected(false)
           setInitializing(false)
+          setHasChecked(true)
         }
       })
 
     return () => {
       abortController.abort()
     }
-  }, [searchParams])
+    // Only depend on the specific param value, not the whole searchParams object
+  }, [appleMusicConnectedParam, hasChecked])
 
   const handleConnect = async () => {
     setLoading(true)
