@@ -184,20 +184,20 @@ export default function CreateForm({ listId }: { listId: string | null }) {
           localStorage.setItem(hasVisitedCreateKey, 'true')
         }
         
-        // If we're already on /create page, skip the 'create-list' step and go straight to 'title'
-        // Otherwise, start with 'create-list' step (which shows in Nav)
-        const initialStep = tutorialParam === 'start' ? 'title' : 'create-list'
-        
         // Small delay to ensure page is rendered and context is ready
         setTimeout(() => {
-          if (initialStep === 'title') {
-            // Start tutorial and immediately advance to title step
+          if (tutorialParam === 'start') {
+            // If we're already on /create page with ?tutorial=start, skip 'create-list' step
+            // Start tutorial and immediately advance to 'title' step
             startTutorial()
-            // Small delay before advancing to ensure tutorial is active
+            // Advance past 'create-list' step to 'title' step
             setTimeout(() => {
-              nextStep()
-            }, 100)
+              if (currentStep === 'create-list') {
+                nextStep()
+              }
+            }, 150)
           } else {
+            // Normal flow: start with 'create-list' step (which shows in Nav)
             startTutorial()
           }
         }, 300)
@@ -207,10 +207,10 @@ export default function CreateForm({ listId }: { listId: string | null }) {
     return () => {
       abortController.abort()
     }
-    // Include tutorialParam in dependencies so tutorial starts when URL param changes
+    // Include tutorialParam and currentStep in dependencies so tutorial starts when URL param changes
     // Only depend on specific param values, not the whole searchParams object
     // This prevents infinite loops when searchParams object reference changes
-  }, [listId, spotifyConnectedParam, appleMusicConnectedParam, stripeSuccessParam, tutorialParam, isActive, isCompleted, startTutorial])
+  }, [listId, spotifyConnectedParam, appleMusicConnectedParam, stripeSuccessParam, tutorialParam, isActive, isCompleted, startTutorial, currentStep, nextStep])
 
 
   // Update tutorial context when sourceType changes
