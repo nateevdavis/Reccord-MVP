@@ -44,6 +44,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
   const spotifyConnectedParam = searchParams.get('spotify_connected')
   const appleMusicConnectedParam = searchParams.get('apple_music_connected')
   const stripeSuccessParam = searchParams.get('stripe_connect_success')
+  const tutorialParam = searchParams.get('tutorial')
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -165,7 +166,6 @@ export default function CreateForm({ listId }: { listId: string | null }) {
 
     // Start tutorial if on create page (not edit) and tutorial hasn't started
     if (!listId && !isActive && !isCompleted) {
-      const tutorialParam = searchParams.get('tutorial')
       const hasVisitedCreateKey = 'reccord_has_visited_create'
       
       // Check if user has visited /create before
