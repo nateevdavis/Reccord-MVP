@@ -16,23 +16,34 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  // Get tutorial completion status
-  const userId = await getSession()
+  // Get tutorial completion status - make it completely non-blocking
+  // If this fails, the app should still render
   let tutorialCompleted = false
   
-  if (userId) {
-    try {
-      const user = await prisma.user.findUnique({
+  try {
+    const userId = await Promise.race([
+      getSession(),
+      new Promise<string | null>((resolve) => setTimeout(() => resolve(null), 1000))
+    ])
+    
+    if (userId) {
+      // Add timeout to prevent hanging - use Promise.race
+      const timeoutPromise = new Promise<boolean>((resolve) => {
+        setTimeout(() => resolve(false), 1500) // 1.5 second timeout
+      })
+      
+      const dbPromise = prisma.user.findUnique({
         where: { id: userId },
         select: { tutorialCompleted: true },
-      })
-      tutorialCompleted = user?.tutorialCompleted || false
-    } catch (error) {
-      // If database connection fails, default to false (tutorial not completed)
-      // This prevents the app from crashing if database is unavailable
-      console.error('Failed to fetch tutorial status:', error)
-      tutorialCompleted = false
+      }).then((user) => user?.tutorialCompleted || false).catch(() => false)
+      
+      // Race between database query and timeout
+      tutorialCompleted = await Promise.race([dbPromise, timeoutPromise])
     }
+  } catch (error) {
+    // If anything fails, default to false - never crash the app
+    // Silently fail to ensure the app always renders
+    tutorialCompleted = false
   }
 
   return (

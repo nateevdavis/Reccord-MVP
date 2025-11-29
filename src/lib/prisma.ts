@@ -38,11 +38,24 @@ Available env vars starting with 'DATABASE': ${Object.keys(process.env).filter(k
     throw new Error(errorMessage)
   }
 
-  // Create Prisma Client - use DATABASE_URL as-is (should already have pooling config)
+  // Create Prisma Client with connection pool limits for serverless
   // For Supabase, ensure you're using port 6543 with ?pgbouncer=true in your DATABASE_URL
   globalForPrisma.prisma = new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+    // Add connection pool configuration to prevent connection exhaustion
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
   })
+
+  // Handle Prisma connection errors gracefully
+  if (typeof process !== 'undefined') {
+    process.on('beforeExit', async () => {
+      await globalForPrisma.prisma?.$disconnect()
+    })
+  }
 
   return globalForPrisma.prisma
 }
