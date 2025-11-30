@@ -184,15 +184,8 @@ export default function TutorialModal({ step }: TutorialModalProps) {
     right: position.right !== undefined && !isNaN(position.right) ? position.right : undefined,
   }
 
-  // Only log render when position actually changes (not on every render)
-  useEffect(() => {
-    if (isVisible && Object.values(validPosition).some(v => v !== undefined)) {
-      console.log(`🎨 Rendering TutorialModal for step "${step.id}"`, {
-        validPosition,
-        hasAllValues: Object.values(validPosition).some(v => v !== undefined)
-      })
-    }
-  }, [isVisible, validPosition.top, validPosition.left, validPosition.bottom, validPosition.right, step.id])
+  // Removed render logging useEffect - was causing infinite re-renders
+  // Position logging is already handled in the main useEffect
 
   return (
     <>
