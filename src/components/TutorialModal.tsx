@@ -59,8 +59,9 @@ export default function TutorialModal({ step }: TutorialModalProps) {
         const viewportWidth = window.innerWidth
         const viewportHeight = window.innerHeight
         const modalWidth = 320 // w-80 = 320px
-        const modalHeight = 200 // Approximate height
+        const modalHeight = 250 // Approximate height with padding
         const spacing = 12
+        const minMargin = 16 // Minimum margin from viewport edges
 
         // Calculate positions with viewport boundary checks
         let calculatedPosition: { top?: number; left?: number; bottom?: number; right?: number } = {}
@@ -69,6 +70,7 @@ export default function TutorialModal({ step }: TutorialModalProps) {
           // Position above, but check if there's enough space
           const spaceAbove = rect.top
           if (spaceAbove >= modalHeight + spacing) {
+            // Enough space above
             calculatedPosition = {
               bottom: viewportHeight - rect.top + scrollY + spacing,
               left: rect.left + scrollX + rect.width / 2,
@@ -84,15 +86,25 @@ export default function TutorialModal({ step }: TutorialModalProps) {
           // Position below, but check if there's enough space
           const spaceBelow = viewportHeight - rect.bottom
           if (spaceBelow >= modalHeight + spacing) {
+            // Enough space below
             calculatedPosition = {
               top: rect.bottom + scrollY + spacing,
               left: rect.left + scrollX + rect.width / 2,
             }
           } else {
-            // Not enough space below, position above instead
-            calculatedPosition = {
-              bottom: viewportHeight - rect.top + scrollY + spacing,
-              left: rect.left + scrollX + rect.width / 2,
+            // Not enough space below, try positioning above
+            const spaceAbove = rect.top
+            if (spaceAbove >= modalHeight + spacing) {
+              calculatedPosition = {
+                bottom: viewportHeight - rect.top + scrollY + spacing,
+                left: rect.left + scrollX + rect.width / 2,
+              }
+            } else {
+              // Not enough space above or below, position in viewport center vertically
+              calculatedPosition = {
+                top: scrollY + viewportHeight / 2,
+                left: rect.left + scrollX + rect.width / 2,
+              }
             }
           }
         } else if (step.position === 'left') {
@@ -106,20 +118,55 @@ export default function TutorialModal({ step }: TutorialModalProps) {
             left: rect.right + scrollX + spacing,
           }
         } else {
-          // Default to bottom
-          calculatedPosition = {
-            top: rect.bottom + scrollY + spacing,
-            left: rect.left + scrollX + rect.width / 2,
+          // Default to bottom with fallback
+          const spaceBelow = viewportHeight - rect.bottom
+          if (spaceBelow >= modalHeight + spacing) {
+            calculatedPosition = {
+              top: rect.bottom + scrollY + spacing,
+              left: rect.left + scrollX + rect.width / 2,
+            }
+          } else {
+            // Fallback to center if not enough space
+            calculatedPosition = {
+              top: scrollY + viewportHeight / 2,
+              left: rect.left + scrollX + rect.width / 2,
+            }
           }
         }
 
         // Ensure modal stays within viewport horizontally
+        // Account for translateX(-50%) which centers the modal
         if (calculatedPosition.left !== undefined) {
-          const leftValue = calculatedPosition.left - modalWidth / 2 // Account for translateX(-50%)
-          if (leftValue < spacing) {
-            calculatedPosition.left = spacing + modalWidth / 2
-          } else if (leftValue + modalWidth > viewportWidth - spacing) {
-            calculatedPosition.left = viewportWidth - spacing - modalWidth / 2
+          const centerX = calculatedPosition.left
+          const halfModalWidth = modalWidth / 2
+          
+          // Check if modal would go off left edge
+          if (centerX - halfModalWidth < minMargin) {
+            calculatedPosition.left = minMargin + halfModalWidth
+          }
+          // Check if modal would go off right edge
+          else if (centerX + halfModalWidth > viewportWidth - minMargin) {
+            calculatedPosition.left = viewportWidth - minMargin - halfModalWidth
+          }
+        }
+
+        // Ensure modal stays within viewport vertically
+        if (calculatedPosition.top !== undefined) {
+          if (calculatedPosition.top - scrollY < minMargin) {
+            // Too close to top, adjust
+            calculatedPosition.top = scrollY + minMargin
+          } else if (calculatedPosition.top - scrollY + modalHeight > viewportHeight - minMargin) {
+            // Too close to bottom, adjust
+            calculatedPosition.top = scrollY + viewportHeight - modalHeight - minMargin
+          }
+        }
+
+        if (calculatedPosition.bottom !== undefined) {
+          const bottomFromTop = viewportHeight - (calculatedPosition.bottom - scrollY)
+          if (bottomFromTop < minMargin) {
+            calculatedPosition.bottom = viewportHeight - minMargin + scrollY
+          } else if (bottomFromTop - modalHeight < minMargin) {
+            calculatedPosition.bottom = modalHeight + minMargin + scrollY
           }
         }
 
@@ -127,7 +174,11 @@ export default function TutorialModal({ step }: TutorialModalProps) {
           position: calculatedPosition,
           rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
           viewport: { width: viewportWidth, height: viewportHeight },
-          scroll: { x: scrollX, y: scrollY }
+          scroll: { x: scrollX, y: scrollY },
+          willBeVisible: {
+            left: calculatedPosition.left ? (calculatedPosition.left - modalWidth/2 >= minMargin && calculatedPosition.left + modalWidth/2 <= viewportWidth - minMargin) : 'N/A',
+            top: calculatedPosition.top ? (calculatedPosition.top - scrollY >= minMargin && calculatedPosition.top - scrollY + modalHeight <= viewportHeight - minMargin) : 'N/A',
+          }
         })
 
         setPosition(calculatedPosition)
