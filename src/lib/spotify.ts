@@ -123,3 +123,152 @@ export async function fetchPlaylistTracks(
   }
 }
 
+export type SpotifyTrack = {
+  name: string
+  artist: string
+  album: string | null
+  url: string | null
+  isrc: string | null
+  playCount: number
+  lastPlayedAt: Date | null
+}
+
+/**
+ * Map Spotify time window to API time_range parameter
+ */
+function mapTimeWindowToSpotifyRange(timeWindow: string): 'short_term' | 'medium_term' | 'long_term' {
+  switch (timeWindow) {
+    case 'THIS_WEEK':
+    case 'THIS_MONTH':
+      return 'short_term' // Last 4 weeks
+    case 'PAST_6_MONTHS':
+      return 'medium_term' // Last 6 months
+    case 'PAST_YEAR':
+    case 'ALL_TIME':
+      return 'long_term' // Several years
+    default:
+      return 'medium_term'
+  }
+}
+
+/**
+ * Fetch user's top tracks from Spotify
+ * Uses /v1/me/top/tracks endpoint
+ */
+export async function fetchTopTracks(
+  accessToken: string,
+  timeWindow: string,
+  limit: number = 50
+): Promise<SpotifyTrack[]> {
+  const spotifyApi = getSpotifyApi(accessToken)
+
+  try {
+    const timeRange = mapTimeWindowToSpotifyRange(timeWindow)
+    const data = await spotifyApi.getMyTopTracks({
+      time_range: timeRange,
+      limit: Math.min(limit, 50), // Spotify API max is 50
+    })
+
+    return data.body.items.map((track) => ({
+      name: track.name,
+      artist: track.artists.map((a) => a.name).join(', '),
+      album: track.album?.name || null,
+      url: track.external_urls.spotify || null,
+      isrc: track.external_ids?.isrc || null,
+      playCount: 1, // Top tracks API doesn't provide play count, use ranking as proxy
+      lastPlayedAt: null, // Top tracks API doesn't provide last played date
+    }))
+  } catch (error) {
+    console.error('Error fetching top tracks:', error)
+    throw new Error('Failed to fetch top tracks')
+  }
+}
+
+/**
+ * Fetch user's recently played tracks from Spotify
+ * Uses /v1/me/player/recently-played endpoint
+ */
+export async function fetchRecentlyPlayed(
+  accessToken: string,
+  limit: number = 50
+): Promise<SpotifyTrack[]> {
+  const spotifyApi = getSpotifyApi(accessToken)
+
+  try {
+    const data = await spotifyApi.getMyRecentlyPlayedTracks({
+      limit: Math.min(limit, 50), // Spotify API max is 50
+    })
+
+    // Count plays per track
+    const trackMap = new Map<string, SpotifyTrack & { playCount: number; lastPlayedAt: Date }>()
+
+    data.body.items.forEach((item) => {
+      const track = item.track
+      if (!track || track.is_local) return
+
+      const isrc = track.external_ids?.isrc || null
+      const key = isrc || `${track.name}|${track.artists.map((a) => a.name).join(',')}`
+
+      if (trackMap.has(key)) {
+        const existing = trackMap.get(key)!
+        existing.playCount++
+        // Update last played if this is more recent
+        const playedAt = new Date(item.played_at)
+        if (!existing.lastPlayedAt || playedAt > existing.lastPlayedAt) {
+          existing.lastPlayedAt = playedAt
+        }
+      } else {
+        trackMap.set(key, {
+          name: track.name,
+          artist: track.artists.map((a) => a.name).join(', '),
+          album: track.album?.name || null,
+          url: track.external_urls.spotify || null,
+          isrc,
+          playCount: 1,
+          lastPlayedAt: new Date(item.played_at),
+        })
+      }
+    })
+
+    return Array.from(trackMap.values())
+  } catch (error) {
+    console.error('Error fetching recently played tracks:', error)
+    throw new Error('Failed to fetch recently played tracks')
+  }
+}
+
+/**
+ * Fetch listening history based on time window
+ * Combines top tracks API with recently played for better accuracy
+ */
+export async function fetchListeningHistory(
+  accessToken: string,
+  timeWindow: string
+): Promise<SpotifyTrack[]> {
+  try {
+    // For short time windows, use recently played tracks
+    if (timeWindow === 'THIS_WEEK' || timeWindow === 'THIS_MONTH') {
+      // Fetch more recently played tracks to get better coverage
+      const recentlyPlayed = await fetchRecentlyPlayed(accessToken, 50)
+      
+      // Filter by time window
+      const now = Date.now()
+      const windowMs = timeWindow === 'THIS_WEEK' 
+        ? 7 * 24 * 60 * 60 * 1000  // 7 days
+        : 30 * 24 * 60 * 60 * 1000 // 30 days
+
+      return recentlyPlayed.filter((track) => {
+        if (!track.lastPlayedAt) return false
+        return (now - track.lastPlayedAt.getTime()) <= windowMs
+      })
+    }
+
+    // For longer time windows, use top tracks API
+    // This is more accurate for medium/long term trends
+    return await fetchTopTracks(accessToken, timeWindow, 50)
+  } catch (error) {
+    console.error('Error fetching listening history:', error)
+    throw new Error('Failed to fetch listening history')
+  }
+}
+

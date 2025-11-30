@@ -11,81 +11,85 @@ datasource db {
 }
 
 model User {
-  id                String             @id @default(cuid())
-  email             String             @unique
-  password          String             // hashed password
-  displayName       String
-  username          String             @unique
-  bio               String?
-  links             Json?              // array of { label, url }
-  lists             List[]
-  subscriptions     Subscription[]
-  stripeCustomer    StripeCustomer?
+  id                   String                @id @default(cuid())
+  email                String                @unique
+  password             String // hashed password
+  displayName          String
+  username             String                @unique
+  bio                  String?
+  links                Json? // array of { label, url }
+  lists                List[]
+  subscriptions        Subscription[]
+  stripeCustomer       StripeCustomer?
   stripeConnectAccount StripeConnectAccount?
-  spotifyConnection SpotifyConnection?
+  spotifyConnection    SpotifyConnection?
   appleMusicConnection AppleMusicConnection?
-  payments          Payment[]
-  tutorialCompleted Boolean            @default(false)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  payments             Payment[]
+  tutorialCompleted    Boolean               @default(false)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 
   @@map("users")
 }
 
 model List {
-  id              String            @id @default(cuid())
-  ownerId         String
-  owner           User              @relation(fields: [ownerId], references: [id])
-  name            String
-  description     String
-  priceCents      Int               // store price as integer cents
-  isPublic        Boolean           @default(false)
-  sourceType      ListSourceType    @default(MANUAL)
-  slug            String            @unique // used for shareable link
-  spotifyConfig   SpotifyListConfig?
+  id               String                @id @default(cuid())
+  ownerId          String
+  owner            User                  @relation(fields: [ownerId], references: [id])
+  name             String
+  description      String
+  priceCents       Int // store price as integer cents
+  isPublic         Boolean               @default(false)
+  sourceType       ListSourceType        @default(MANUAL)
+  slug             String                @unique // used for shareable link
+  spotifyConfig    SpotifyListConfig?
   appleMusicConfig AppleMusicListConfig?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  items           ListItem[]
-  subscriptions   Subscription[]
+  topSongsConfig   TopSongsListConfig?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  items            ListItem[]
+  subscriptions    Subscription[]
 
   @@map("lists")
 }
 
 model ListItem {
-  id          String   @id @default(cuid())
-  listId      String
-  list        List     @relation(fields: [listId], references: [id], onDelete: Cascade)
-  name        String
-  description String?
-  url         String?
-  sortOrder   Int
+  id            String  @id @default(cuid())
+  listId        String
+  list          List    @relation(fields: [listId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  url           String?
+  sortOrder     Int
+  isrc          String? // ISRC for cross-service deduplication
+  albumName     String? // Album name if available
+  sourceService String? // SPOTIFY or APPLE_MUSIC to track origin
 
   @@map("list_items")
 }
 
 model Subscription {
-  id                  String    @id @default(cuid())
-  userId              String
-  user                User      @relation(fields: [userId], references: [id])
-  listId              String
-  list                List      @relation(fields: [listId], references: [id])
-  stripeSubscriptionId String?  // For recurring subscriptions
-  payments            Payment[] // One subscription can have many payments
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                   String    @id @default(cuid())
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id])
+  listId               String
+  list                 List      @relation(fields: [listId], references: [id])
+  stripeSubscriptionId String? // For recurring subscriptions
+  payments             Payment[] // One subscription can have many payments
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@unique([userId, listId])
   @@map("subscriptions")
 }
 
 model StripeCustomer {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  stripeCustomerId String  @unique
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeCustomerId String   @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@map("stripe_customers")
 }
@@ -97,10 +101,10 @@ model Payment {
   listId                String
   subscriptionId        String?
   subscription          Subscription? @relation(fields: [subscriptionId], references: [id])
-  stripePaymentIntentId String?       // For one-time payments
-  stripeSubscriptionId   String?       // For recurring subscriptions
-  amountCents           Int           // Total amount paid
-  platformFeeCents      Int           // Platform fee ($0.50)
+  stripePaymentIntentId String? // For one-time payments
+  stripeSubscriptionId  String? // For recurring subscriptions
+  amountCents           Int // Total amount paid
+  platformFeeCents      Int // Platform fee ($0.50)
   status                PaymentStatus @default(PENDING)
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
@@ -109,13 +113,13 @@ model Payment {
 }
 
 model StripeConnectAccount {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  stripeAccountId   String   @unique // Express account ID
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeAccountId  String   @unique // Express account ID
   onboardingStatus String   @default("pending") // pending, active, restricted, etc.
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@map("stripe_connect_accounts")
 }
@@ -135,43 +139,66 @@ model SpotifyConnection {
 }
 
 model SpotifyListConfig {
-  id          String   @id @default(cuid())
-  listId      String   @unique
-  list        List     @relation(fields: [listId], references: [id], onDelete: Cascade)
-  playlistId  String   // Spotify playlist ID extracted from URL
-  playlistUrl String   // Full playlist URL
+  id           String    @id @default(cuid())
+  listId       String    @unique
+  list         List      @relation(fields: [listId], references: [id], onDelete: Cascade)
+  playlistId   String // Spotify playlist ID extracted from URL
+  playlistUrl  String // Full playlist URL
   lastSyncedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@map("spotify_list_configs")
 }
 
 model AppleMusicConnection {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  developerToken String  // Apple Music developer token (JWT)
-  musicUserToken String? // User's MusicKit token (from client)
-  expiresAt     DateTime
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  developerToken   String // Apple Music developer token (JWT)
+  musicUserToken   String? // User's MusicKit token (from client)
+  expiresAt        DateTime
   appleMusicUserId String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@map("apple_music_connections")
 }
 
 model AppleMusicListConfig {
-  id          String   @id @default(cuid())
-  listId      String   @unique
-  list        List     @relation(fields: [listId], references: [id], onDelete: Cascade)
-  playlistId  String   // Apple Music playlist ID extracted from URL
-  playlistUrl String   // Full playlist URL
+  id           String    @id @default(cuid())
+  listId       String    @unique
+  list         List      @relation(fields: [listId], references: [id], onDelete: Cascade)
+  playlistId   String // Apple Music playlist ID extracted from URL
+  playlistUrl  String // Full playlist URL
   lastSyncedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@map("apple_music_list_configs")
+}
+
+enum TopSongsTimeWindow {
+  THIS_WEEK
+  THIS_MONTH
+  PAST_6_MONTHS
+  PAST_YEAR
+  ALL_TIME
+
+  @@map("top_songs_time_window")
+}
+
+model TopSongsListConfig {
+  id           String             @id @default(cuid())
+  listId       String             @unique
+  list         List               @relation(fields: [listId], references: [id], onDelete: Cascade)
+  timeWindow   TopSongsTimeWindow
+  sources      Json // Array of strings: ["SPOTIFY"], ["APPLE_MUSIC"], or ["SPOTIFY", "APPLE_MUSIC"]
+  lastSyncedAt DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@map("top_songs_list_configs")
 }
 
 enum PaymentStatus {
@@ -187,7 +214,7 @@ enum ListSourceType {
   MANUAL
   SPOTIFY
   APPLE_MUSIC
+  TOP_SONGS
 
   @@map("list_source_type")
 }
-

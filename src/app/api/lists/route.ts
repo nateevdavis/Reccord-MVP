@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
 import { z } from 'zod'
-import { extractPlaylistId, getValidAccessToken, fetchPlaylistTracks } from '@/lib/spotify'
-import { extractPlaylistId as extractApplePlaylistId, getUserToken, getDeveloperToken, fetchPlaylistTracks as fetchApplePlaylistTracks } from '@/lib/apple-music'
+import { extractPlaylistId, getValidAccessToken, fetchPlaylistTracks, fetchListeningHistory } from '@/lib/spotify'
+import { extractPlaylistId as extractApplePlaylistId, getUserToken, getDeveloperToken, fetchPlaylistTracks as fetchApplePlaylistTracks, fetchListeningHistory as fetchAppleListeningHistory } from '@/lib/apple-music'
+import { processTopSongs } from '@/lib/top-songs'
 import { stripe } from '@/lib/stripe'
 
 const createListSchema = z.object({
@@ -11,8 +12,10 @@ const createListSchema = z.object({
   description: z.string().optional(),
   priceCents: z.number().int().min(0, 'Price must be >= 0'),
   isPublic: z.boolean(),
-  sourceType: z.enum(['MANUAL', 'SPOTIFY', 'APPLE_MUSIC']),
-  playlistUrl: z.string().optional(), // For Spotify lists
+  sourceType: z.enum(['MANUAL', 'SPOTIFY', 'APPLE_MUSIC', 'TOP_SONGS']),
+  playlistUrl: z.string().optional(), // For Spotify/Apple Music lists
+  timeWindow: z.enum(['THIS_WEEK', 'THIS_MONTH', 'PAST_6_MONTHS', 'PAST_YEAR', 'ALL_TIME']).optional(), // For TOP_SONGS
+  sources: z.array(z.enum(['SPOTIFY', 'APPLE_MUSIC'])).optional(), // For TOP_SONGS
   items: z
     .array(
       z.object({
@@ -249,6 +252,124 @@ export async function POST(request: NextRequest) {
         include: {
           items: true,
           appleMusicConfig: true,
+        },
+      })
+
+      return NextResponse.json({ list }, { status: 201 })
+    }
+
+    // Handle Top Songs list creation
+    if (validated.sourceType === 'TOP_SONGS') {
+      if (!validated.timeWindow) {
+        return NextResponse.json(
+          { error: 'Time window is required for Top Songs lists' },
+          { status: 400 }
+        )
+      }
+
+      if (!validated.sources || validated.sources.length === 0) {
+        return NextResponse.json(
+          { error: 'At least one source (Spotify or Apple Music) is required' },
+          { status: 400 }
+        )
+      }
+
+      // Check which services are connected
+      const spotifyConnection = await prisma.spotifyConnection.findUnique({
+        where: { userId },
+      })
+      const appleMusicConnection = await prisma.appleMusicConnection.findUnique({
+        where: { userId },
+      })
+
+      // Validate that requested sources are actually connected
+      const connectedSources: string[] = []
+      if (validated.sources.includes('SPOTIFY')) {
+        if (!spotifyConnection) {
+          return NextResponse.json(
+            { error: 'Spotify not connected. Please connect Spotify first.' },
+            { status: 400 }
+          )
+        }
+        connectedSources.push('SPOTIFY')
+      }
+      if (validated.sources.includes('APPLE_MUSIC')) {
+        if (!appleMusicConnection) {
+          return NextResponse.json(
+            { error: 'Apple Music not connected. Please connect Apple Music first.' },
+            { status: 400 }
+          )
+        }
+        connectedSources.push('APPLE_MUSIC')
+      }
+
+      // Fetch tracks from selected sources
+      let spotifyTracks: any[] = []
+      let appleMusicTracks: any[] = []
+
+      if (connectedSources.includes('SPOTIFY')) {
+        try {
+          const accessToken = await getValidAccessToken(userId)
+          spotifyTracks = await fetchListeningHistory(accessToken, validated.timeWindow)
+        } catch (error) {
+          console.error('Error fetching Spotify listening history:', error)
+          // Continue with other sources even if one fails
+        }
+      }
+
+      if (connectedSources.includes('APPLE_MUSIC')) {
+        try {
+          const developerToken = await getDeveloperToken()
+          const userToken = await getUserToken(userId)
+          appleMusicTracks = await fetchAppleListeningHistory(developerToken, userToken, validated.timeWindow)
+        } catch (error) {
+          console.error('Error fetching Apple Music listening history:', error)
+          // Continue with other sources even if one fails
+        }
+      }
+
+      // Process and deduplicate tracks
+      const topTracks = processTopSongs(spotifyTracks, appleMusicTracks)
+
+      if (topTracks.length === 0) {
+        return NextResponse.json(
+          { error: 'No listening history found for the selected time window. Try a different time range or ensure you have played music recently.' },
+          { status: 400 }
+        )
+      }
+
+      // Create list with Top Songs config and items
+      const list = await prisma.list.create({
+        data: {
+          ownerId: userId,
+          name: validated.name,
+          description: validated.description || '',
+          priceCents: validated.priceCents,
+          isPublic: validated.isPublic,
+          sourceType: validated.sourceType,
+          slug,
+          topSongsConfig: {
+            create: {
+              timeWindow: validated.timeWindow,
+              sources: connectedSources,
+              lastSyncedAt: new Date(),
+            },
+          },
+          items: {
+            create: topTracks.map((track, index) => ({
+              name: track.name,
+              description: track.artist,
+              url: track.url || null,
+              sortOrder: index,
+              isrc: track.isrc || null,
+              albumName: track.album || null,
+              sourceService: track.sourceServices.join(','), // Store comma-separated services
+            })),
+          },
+        },
+        include: {
+          items: true,
+          topSongsConfig: true,
         },
       })
 

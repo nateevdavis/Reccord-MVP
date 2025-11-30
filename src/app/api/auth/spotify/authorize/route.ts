@@ -80,6 +80,8 @@ export async function GET(request: NextRequest) {
       'playlist-read-private',
       'playlist-read-collaborative',
       'user-read-email',
+      'user-top-read',              // Required for top tracks
+      'user-read-recently-played',  // Required for recently played tracks
     ]
 
     let clientId: string

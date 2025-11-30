@@ -6,6 +6,7 @@ import SubscribeButton from './SubscribeButton'
 import ShareableUrl from './ShareableUrl'
 import PaymentStatusHandler from './PaymentStatusHandler'
 import TutorialShareStep from './TutorialShareStep'
+import RefreshTopSongsButton from './RefreshTopSongsButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +35,7 @@ export default async function ListPage({
           }
         : undefined,
       spotifyConfig: true,
+      topSongsConfig: true,
     },
   })
 
@@ -94,6 +96,38 @@ export default async function ListPage({
               </p>
             </div>
           )}
+          {list.sourceType === 'TOP_SONGS' && list.topSongsConfig && (
+            <div className="rounded border border-purple-200 bg-purple-50 p-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-purple-900">
+                    🎵 Top Songs List
+                  </p>
+                  <p className="mt-1 text-sm text-purple-800">
+                    Time window: {
+                      list.topSongsConfig.timeWindow === 'THIS_WEEK' && 'This Week (last 7 days)'
+                      || list.topSongsConfig.timeWindow === 'THIS_MONTH' && 'This Month (last 30 days)'
+                      || list.topSongsConfig.timeWindow === 'PAST_6_MONTHS' && 'Past 6 Months (last 180 days)'
+                      || list.topSongsConfig.timeWindow === 'PAST_YEAR' && 'Past Year (last 365 days)'
+                      || list.topSongsConfig.timeWindow === 'ALL_TIME' && 'All Time'
+                    }
+                  </p>
+                  <p className="mt-1 text-sm text-purple-800">
+                    Sources: {(list.topSongsConfig.sources as string[]).join(', ')}
+                  </p>
+                  <p className="mt-1 text-sm text-purple-800">
+                    Auto-updates daily • Last synced:{' '}
+                    {list.topSongsConfig.lastSyncedAt
+                      ? new Date(list.topSongsConfig.lastSyncedAt).toLocaleString()
+                      : 'Never'}
+                  </p>
+                </div>
+                {isOwner && (
+                  <RefreshTopSongsButton listId={list.id} />
+                )}
+              </div>
+            </div>
+          )}
           <h1 className="text-3xl font-semibold text-gray-900">{list.name}</h1>
           {list.description && (
             <p className="text-gray-700 whitespace-pre-wrap">
@@ -134,29 +168,57 @@ export default async function ListPage({
             <p className="text-gray-600">No items yet.</p>
           ) : (
             <div className="space-y-3">
-              {list.items.map((item) => (
+              {list.items.map((item, index) => (
                 <div
                   key={item.id}
                   className={`rounded border border-gray-200 p-4 ${
                     shouldBlur ? 'blur-md select-none pointer-events-none' : ''
                   }`}
                 >
-                  <h3 className="font-medium text-gray-900">{item.name}</h3>
-                  {item.description && (
-                    <p className="mt-1 text-sm text-gray-600">
-                      {item.description}
-                    </p>
-                  )}
-                  {item.url && (
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 block text-sm text-blue-600 hover:text-blue-700"
-                    >
-                      {item.url}
-                    </a>
-                  )}
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      {list.sourceType === 'TOP_SONGS' && (
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className="text-lg font-bold text-gray-400">#{index + 1}</span>
+                          {item.sourceService && (
+                            <div className="flex gap-1">
+                              {item.sourceService.includes('SPOTIFY') && (
+                                <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                                  Spotify
+                                </span>
+                              )}
+                              {item.sourceService.includes('APPLE_MUSIC') && (
+                                <span className="rounded bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-800">
+                                  Apple Music
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <h3 className="font-medium text-gray-900">{item.name}</h3>
+                      {item.description && (
+                        <p className="mt-1 text-sm text-gray-600">
+                          {item.description}
+                        </p>
+                      )}
+                      {item.albumName && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Album: {item.albumName}
+                        </p>
+                      )}
+                      {item.url && (
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-block text-sm text-blue-600 hover:text-blue-700"
+                        >
+                          Open in {item.sourceService?.includes('SPOTIFY') ? 'Spotify' : item.sourceService?.includes('APPLE_MUSIC') ? 'Apple Music' : 'music service'} →
+                        </a>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>

@@ -19,7 +19,8 @@ type ListItem = {
   url: string
 }
 
-type ListSourceType = 'MANUAL' | 'SPOTIFY' | 'APPLE_MUSIC'
+type ListSourceType = 'MANUAL' | 'SPOTIFY' | 'APPLE_MUSIC' | 'TOP_SONGS'
+type TimeWindow = 'THIS_WEEK' | 'THIS_MONTH' | 'PAST_6_MONTHS' | 'PAST_YEAR' | 'ALL_TIME'
 
 export default function CreateForm({ listId }: { listId: string | null }) {
   const router = useRouter()
@@ -40,6 +41,9 @@ export default function CreateForm({ listId }: { listId: string | null }) {
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(!!listId)
   const [hasExistingLists, setHasExistingLists] = useState(false)
+  // Top Songs specific state
+  const [timeWindow, setTimeWindow] = useState<TimeWindow>('THIS_MONTH')
+  const [selectedSources, setSelectedSources] = useState<string[]>([])
 
   // Form state persistence key
   const FORM_STATE_KEY = 'reccord_create_form_state'
@@ -379,6 +383,25 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       }
     }
 
+    // Validate Top Songs configuration
+    if (sourceType === 'TOP_SONGS') {
+      if (selectedSources.length === 0) {
+        alert('Please select at least one music source (Spotify or Apple Music)')
+        setLoading(false)
+        return
+      }
+      if (!spotifyConnected && selectedSources.includes('SPOTIFY')) {
+        alert('Please connect Spotify first')
+        setLoading(false)
+        return
+      }
+      if (!appleMusicConnected && selectedSources.includes('APPLE_MUSIC')) {
+        alert('Please connect Apple Music first')
+        setLoading(false)
+        return
+      }
+    }
+
     const payload: any = {
       name: name.trim(),
       description: description.trim(),
@@ -386,6 +409,10 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       isPublic,
       sourceType,
       ...((sourceType === 'SPOTIFY' || sourceType === 'APPLE_MUSIC') && { playlistUrl: playlistUrl.trim() }),
+      ...(sourceType === 'TOP_SONGS' && {
+        timeWindow,
+        sources: selectedSources,
+      }),
     }
     
     // Only include items if sourceType is MANUAL and we have valid items
@@ -556,6 +583,31 @@ export default function CreateForm({ listId }: { listId: string | null }) {
               }`}
             >
               Apple Music
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSourceType('TOP_SONGS')
+                // Initialize sources based on what's connected
+                const sources: string[] = []
+                if (spotifyConnected) sources.push('SPOTIFY')
+                if (appleMusicConnected) sources.push('APPLE_MUSIC')
+                setSelectedSources(sources)
+                // Advance tutorial if on source-type step
+                if (isActive && currentStep === 'source-type') {
+                  setTimeout(() => {
+                    setContext({ sourceType: 'TOP_SONGS', spotifyConnected, appleMusicConnected })
+                    nextStep({ sourceType: 'TOP_SONGS', spotifyConnected, appleMusicConnected })
+                  }, 300)
+                }
+              }}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                sourceType === 'TOP_SONGS'
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Top Songs
             </button>
           </div>
         </div>
@@ -750,6 +802,96 @@ export default function CreateForm({ listId }: { listId: string | null }) {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {sourceType === 'TOP_SONGS' && (
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Time Window
+              </label>
+              <div className="space-y-2">
+                {(['THIS_WEEK', 'THIS_MONTH', 'PAST_6_MONTHS', 'PAST_YEAR', 'ALL_TIME'] as TimeWindow[]).map((window) => (
+                  <label key={window} className="flex items-center">
+                    <input
+                      type="radio"
+                      name="timeWindow"
+                      value={window}
+                      checked={timeWindow === window}
+                      onChange={(e) => setTimeWindow(e.target.value as TimeWindow)}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">
+                      {window === 'THIS_WEEK' && 'This Week (last 7 days)'}
+                      {window === 'THIS_MONTH' && 'This Month (last 30 days)'}
+                      {window === 'PAST_6_MONTHS' && 'Past 6 Months (last 180 days)'}
+                      {window === 'PAST_YEAR' && 'Past Year (last 365 days)'}
+                      {window === 'ALL_TIME' && 'All Time'}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Music Sources
+              </label>
+              <p className="mb-2 text-sm text-gray-600">
+                Select which service(s) to use for your top songs. You must have at least one connected.
+              </p>
+              <div className="space-y-2">
+                {spotifyConnected && (
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedSources.includes('SPOTIFY')}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedSources([...selectedSources, 'SPOTIFY'])
+                        } else {
+                          setSelectedSources(selectedSources.filter(s => s !== 'SPOTIFY'))
+                        }
+                      }}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">Spotify</span>
+                  </label>
+                )}
+                {appleMusicConnected && (
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedSources.includes('APPLE_MUSIC')}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedSources([...selectedSources, 'APPLE_MUSIC'])
+                        } else {
+                          setSelectedSources(selectedSources.filter(s => s !== 'APPLE_MUSIC'))
+                        }
+                      }}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">Apple Music</span>
+                  </label>
+                )}
+                {!spotifyConnected && !appleMusicConnected && (
+                  <div className="rounded border border-yellow-200 bg-yellow-50 p-3">
+                    <p className="mb-2 text-sm text-yellow-800">
+                      You need to connect at least one music service to create a Top Songs list.
+                    </p>
+                    <div className="flex gap-2">
+                      {!spotifyConnected && <SpotifyConnectButton />}
+                      {!appleMusicConnected && <AppleMusicConnectButton />}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <p className="text-sm text-gray-600">
+              This list will automatically update daily with your top 10 tracks based on your listening history.
+            </p>
           </div>
         )}
 

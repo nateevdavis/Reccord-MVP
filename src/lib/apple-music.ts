@@ -200,3 +200,187 @@ export async function getUserToken(userId: string): Promise<string> {
   return connection.musicUserToken
 }
 
+export type AppleMusicTrack = {
+  name: string
+  artist: string
+  album: string | null
+  url: string | null
+  isrc: string | null
+  playCount: number
+  lastPlayedAt: Date | null
+}
+
+/**
+ * Fetch user's heavy rotation tracks from Apple Music
+ * Uses /v1/me/history/heavy-rotation endpoint
+ * This is Apple Music's approximation of top tracks
+ */
+export async function fetchHeavyRotation(
+  developerToken: string,
+  userToken: string
+): Promise<AppleMusicTrack[]> {
+  try {
+    const response = await fetch(
+      'https://api.music.apple.com/v1/me/history/heavy-rotation',
+      {
+        headers: {
+          Authorization: `Bearer ${developerToken}`,
+          'Music-User-Token': userToken,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('Apple Music API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData,
+      })
+      throw new Error(`Apple Music API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const tracks = data.data || []
+
+    return tracks.map((track: any) => {
+      const attributes = track.attributes || {}
+      return {
+        name: attributes.name || 'Unknown Track',
+        artist: attributes.artistName || 'Unknown Artist',
+        album: attributes.albumName || null,
+        url: attributes.url || null,
+        isrc: attributes.isrc || null,
+        playCount: 1, // Heavy rotation doesn't provide play count
+        lastPlayedAt: null, // Heavy rotation doesn't provide last played date
+      }
+    })
+  } catch (error) {
+    console.error('Error fetching heavy rotation:', error)
+    throw new Error('Failed to fetch heavy rotation tracks')
+  }
+}
+
+/**
+ * Fetch user's recently played tracks from Apple Music
+ * Uses /v1/me/recent/played/tracks endpoint
+ * Limited history available (typically last 25 tracks)
+ */
+export async function fetchRecentlyPlayed(
+  developerToken: string,
+  userToken: string,
+  limit: number = 25
+): Promise<AppleMusicTrack[]> {
+  try {
+    const response = await fetch(
+      `https://api.music.apple.com/v1/me/recent/played/tracks?limit=${Math.min(limit, 25)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${developerToken}`,
+          'Music-User-Token': userToken,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('Apple Music API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData,
+      })
+      throw new Error(`Apple Music API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const tracks = data.data || []
+
+    // Count plays per track
+    const trackMap = new Map<string, AppleMusicTrack & { playCount: number; lastPlayedAt: Date }>()
+
+    tracks.forEach((track: any) => {
+      const attributes = track.attributes || {}
+      const isrc = attributes.isrc || null
+      const key = isrc || `${attributes.name}|${attributes.artistName}`
+
+      if (trackMap.has(key)) {
+        const existing = trackMap.get(key)!
+        existing.playCount++
+        // Update last played if this is more recent
+        const playedAt = track.attributes?.playDate 
+          ? new Date(track.attributes.playDate)
+          : new Date()
+        if (!existing.lastPlayedAt || playedAt > existing.lastPlayedAt) {
+          existing.lastPlayedAt = playedAt
+        }
+      } else {
+        trackMap.set(key, {
+          name: attributes.name || 'Unknown Track',
+          artist: attributes.artistName || 'Unknown Artist',
+          album: attributes.albumName || null,
+          url: attributes.url || null,
+          isrc,
+          playCount: 1,
+          lastPlayedAt: track.attributes?.playDate 
+            ? new Date(track.attributes.playDate)
+            : new Date(),
+        })
+      }
+    })
+
+    return Array.from(trackMap.values())
+  } catch (error) {
+    console.error('Error fetching recently played tracks:', error)
+    throw new Error('Failed to fetch recently played tracks')
+  }
+}
+
+/**
+ * Fetch top tracks based on time window
+ * Apple Music has limited history APIs, so we use approximations:
+ * - Short term: Recently played tracks
+ * - Medium/Long term: Heavy rotation (Apple Music's approximation of top tracks)
+ */
+export async function fetchTopTracks(
+  developerToken: string,
+  userToken: string,
+  timeWindow: string
+): Promise<AppleMusicTrack[]> {
+  try {
+    // For short time windows, use recently played
+    if (timeWindow === 'THIS_WEEK' || timeWindow === 'THIS_MONTH') {
+      const recentlyPlayed = await fetchRecentlyPlayed(developerToken, userToken, 25)
+      
+      // Filter by time window
+      const now = Date.now()
+      const windowMs = timeWindow === 'THIS_WEEK' 
+        ? 7 * 24 * 60 * 60 * 1000  // 7 days
+        : 30 * 24 * 60 * 60 * 1000 // 30 days
+
+      return recentlyPlayed.filter((track) => {
+        if (!track.lastPlayedAt) return false
+        return (now - track.lastPlayedAt.getTime()) <= windowMs
+      })
+    }
+
+    // For longer time windows, use heavy rotation
+    // This is Apple Music's best approximation of top tracks
+    return await fetchHeavyRotation(developerToken, userToken)
+  } catch (error) {
+    console.error('Error fetching top tracks:', error)
+    throw new Error('Failed to fetch top tracks')
+  }
+}
+
+/**
+ * Fetch listening history based on time window
+ * Alias for fetchTopTracks for consistency with Spotify API
+ */
+export async function fetchListeningHistory(
+  developerToken: string,
+  userToken: string,
+  timeWindow: string
+): Promise<AppleMusicTrack[]> {
+  return await fetchTopTracks(developerToken, userToken, timeWindow)
+}
+
