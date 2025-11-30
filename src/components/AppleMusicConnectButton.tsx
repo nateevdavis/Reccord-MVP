@@ -10,7 +10,11 @@ declare global {
   }
 }
 
-export default function AppleMusicConnectButton() {
+interface AppleMusicConnectButtonProps {
+  onBeforeConnect?: () => void
+}
+
+export default function AppleMusicConnectButton({ onBeforeConnect }: AppleMusicConnectButtonProps = {}) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isConnected, setIsConnected] = useState(false)

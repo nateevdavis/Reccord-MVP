@@ -4,7 +4,11 @@ import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Button from './ui/Button'
 
-export default function SpotifyConnectButton() {
+interface SpotifyConnectButtonProps {
+  onBeforeConnect?: () => void
+}
+
+export default function SpotifyConnectButton({ onBeforeConnect }: SpotifyConnectButtonProps = {}) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isConnected, setIsConnected] = useState(false)
@@ -59,6 +63,12 @@ export default function SpotifyConnectButton() {
     setLoading(true)
     const currentUrl = window.location.href
     const returnUrl = new URL(currentUrl).pathname + new URL(currentUrl).search
+    
+    // Call callback to save form state before redirecting
+    if (onBeforeConnect) {
+      onBeforeConnect()
+    }
+    
     // Use window.location.href for OAuth redirects to avoid CORS issues with router.push()
     window.location.href = `/api/auth/spotify/authorize?returnUrl=${encodeURIComponent(returnUrl)}`
   }

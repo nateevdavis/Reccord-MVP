@@ -41,6 +41,9 @@ export default function CreateForm({ listId }: { listId: string | null }) {
   const [loadingData, setLoadingData] = useState(!!listId)
   const [hasExistingLists, setHasExistingLists] = useState(false)
 
+  // Form state persistence key
+  const FORM_STATE_KEY = 'reccord_create_form_state'
+
   // Extract specific params outside useEffect to avoid infinite loops
   const spotifyConnectedParam = searchParams.get('spotify_connected')
   const appleMusicConnectedParam = searchParams.get('apple_music_connected')
@@ -49,6 +52,29 @@ export default function CreateForm({ listId }: { listId: string | null }) {
 
   useEffect(() => {
     const abortController = new AbortController()
+    
+    // Restore form state from localStorage if coming back from Spotify/Apple Music connection
+    if ((spotifyConnectedParam === '1' || appleMusicConnectedParam === '1') && !listId) {
+      try {
+        const savedState = localStorage.getItem(FORM_STATE_KEY)
+        if (savedState) {
+          const parsed = JSON.parse(savedState)
+          setName(parsed.name || '')
+          setDescription(parsed.description || '')
+          setPrice(parsed.price || '')
+          setIsPublic(parsed.isPublic || false)
+          setSourceType(parsed.sourceType || 'MANUAL')
+          setItems(parsed.items || [{ name: '', description: '', url: '' }])
+          setPlaylistUrl(parsed.playlistUrl || '')
+          // Clear saved state after restoring
+          localStorage.removeItem(FORM_STATE_KEY)
+        }
+      } catch (error) {
+        console.error('Error restoring form state:', error)
+        // Clear invalid state
+        localStorage.removeItem(FORM_STATE_KEY)
+      }
+    }
     
     // Check if we just connected (from callback) - check this first
     if (spotifyConnectedParam === '1') {
