@@ -257,9 +257,9 @@ export default function CreateForm({ listId }: { listId: string | null }) {
           
           if (tutorialParam === 'start') {
             // If we're already on /create page with ?tutorial=start, skip 'create-list' step
-            // and start directly at 'title' step since user already clicked "Create"
-            console.log('🚀 Starting tutorial at title step (from ?tutorial=start)')
-            startTutorial('title')
+            // and start directly at 'source-type' step since user already clicked "Create"
+            console.log('🚀 Starting tutorial at source-type step (from ?tutorial=start)')
+            startTutorial('source-type')
           } else {
             // Normal flow: start with 'create-list' step (which shows in Nav)
             console.log('🚀 Starting tutorial at create-list step (first visit)')
@@ -270,7 +270,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
           setTimeout(() => {
             console.log('Tutorial state after start:', {
               isActive: true, // We just set it, so check context
-              currentStep: tutorialParam === 'start' ? 'title' : 'create-list' // Should be set by startTutorial
+              currentStep: tutorialParam === 'start' ? 'source-type' : 'create-list' // Should be set by startTutorial
             })
           }, 100)
         }, 500) // Increased delay to ensure DOM is ready
@@ -477,7 +477,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
             <button
               onClick={() => {
                 console.log('Manual tutorial start triggered')
-                startTutorial('title')
+                startTutorial('source-type')
               }}
               className="mt-2 rounded bg-blue-500 px-2 py-1 text-white"
             >

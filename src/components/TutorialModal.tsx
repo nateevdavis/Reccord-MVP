@@ -248,7 +248,16 @@ export default function TutorialModal({ step }: TutorialModalProps) {
     }
   }
 
-  const stepIndex = ['create-list', 'title', 'description', 'price', 'public', 'source-type', 'music-url', 'manual-item', 'save', 'share'].indexOf(step.id) + 1
+  // Calculate step index based on tutorial step order
+  // When on create page, 'create-list' is skipped, so we adjust the index
+  const allSteps = ['create-list', 'source-type', 'title', 'description', 'price', 'public', 'connect-spotify', 'connect-apple-music', 'music-url', 'manual-item', 'save', 'share']
+  const stepIndexInAll = allSteps.indexOf(step.id) + 1
+  
+  // If we're on a step that comes after 'create-list' and we're on the create page,
+  // subtract 1 to account for skipping 'create-list'
+  // Steps on create page: source-type (1), title (2), description (3), etc.
+  const isCreatePageStep = ['source-type', 'title', 'description', 'price', 'public', 'connect-spotify', 'connect-apple-music', 'music-url', 'manual-item', 'save'].includes(step.id)
+  const stepIndex = isCreatePageStep ? stepIndexInAll - 1 : stepIndexInAll
   const totalSteps = 10
 
   // Ensure position values are valid numbers
