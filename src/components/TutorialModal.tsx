@@ -23,17 +23,19 @@ export default function TutorialModal({ step }: TutorialModalProps) {
   const targetRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
-    // Debug logging
-    console.log('TutorialModal useEffect:', {
-      stepId: step.id,
-      isActive,
-      currentStep,
-      shouldShow: isActive && currentStep === step.id,
-      targetSelector: step.targetSelector
-    })
+    // Debug logging (only once per step change)
+    if (isActive && currentStep === step.id) {
+      console.log('TutorialModal useEffect:', {
+        stepId: step.id,
+        isActive,
+        currentStep,
+        targetSelector: step.targetSelector
+      })
+    }
 
     if (!isActive || currentStep !== step.id) {
       setIsVisible(false)
+      setPosition({}) // Clear position when not active
       return
     }
 
@@ -43,11 +45,18 @@ export default function TutorialModal({ step }: TutorialModalProps) {
     const maxRetries = 20 // Increased retries for slower renders
     const retryDelay = 100
     let timeoutId: NodeJS.Timeout | null = null
+    let positionTimeoutId: NodeJS.Timeout | null = null
     let cleanupTarget: HTMLElement | null = null
+    let hasSetPosition = false // Prevent multiple position updates
 
     const findAndShowTarget = () => {
       const target = document.querySelector(step.targetSelector) as HTMLElement
       if (target) {
+        // Only proceed if we haven't already set position for this step
+        if (hasSetPosition) {
+          return true
+        }
+
         console.log(`✅ Found tutorial target for step "${step.id}":`, step.targetSelector, target)
         targetRef.current = target
         cleanupTarget = target
@@ -61,8 +70,13 @@ export default function TutorialModal({ step }: TutorialModalProps) {
         // Scroll target into view smoothly to ensure it's visible
         target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
         
-        // Wait a moment for scroll to complete, then calculate position
-        setTimeout(() => {
+        // Wait a moment for scroll to complete, then calculate position (only once)
+        positionTimeoutId = setTimeout(() => {
+          // Double-check we're still on the same step
+          if (!isActive || currentStep !== step.id) {
+            return
+          }
+
           const rect = target.getBoundingClientRect()
           const scrollY = window.scrollY
           const scrollX = window.scrollX
@@ -98,6 +112,7 @@ export default function TutorialModal({ step }: TutorialModalProps) {
 
           setPosition(calculatedPosition)
           setIsVisible(true)
+          hasSetPosition = true
           console.log(`✅ Tutorial modal visible for step "${step.id}"`)
         }, 300) // Wait for scroll animation
         
@@ -130,31 +145,19 @@ export default function TutorialModal({ step }: TutorialModalProps) {
       if (timeoutId) {
         clearTimeout(timeoutId)
       }
+      if (positionTimeoutId) {
+        clearTimeout(positionTimeoutId)
+      }
       if (cleanupTarget) {
         cleanupTarget.style.outline = ''
         cleanupTarget.style.outlineOffset = ''
         cleanupTarget.style.pointerEvents = ''
       }
+      hasSetPosition = false // Reset flag on cleanup
     }
   }, [isActive, currentStep, step.id, step.targetSelector, step.position])
 
-  // Debug: Log render state
-  useEffect(() => {
-    if (isVisible && targetRef.current) {
-      console.log(`🎨 TutorialModal rendering for step "${step.id}"`, {
-        isVisible,
-        hasTarget: !!targetRef.current,
-        position,
-        targetElement: targetRef.current
-      })
-    } else {
-      console.log(`🚫 TutorialModal NOT rendering for step "${step.id}"`, {
-        isVisible,
-        hasTarget: !!targetRef.current,
-        reason: !isVisible ? 'not visible' : 'no target ref'
-      })
-    }
-  }, [isVisible, step.id, position])
+  // Removed debug logging useEffect that was causing infinite renders
 
   if (!isVisible || !targetRef.current) {
     return null
@@ -181,12 +184,15 @@ export default function TutorialModal({ step }: TutorialModalProps) {
     right: position.right !== undefined && !isNaN(position.right) ? position.right : undefined,
   }
 
-  // Log final render with position
-  console.log(`🎨 Rendering TutorialModal for step "${step.id}"`, {
-    validPosition,
-    originalPosition: position,
-    hasAllValues: Object.values(validPosition).some(v => v !== undefined)
-  })
+  // Only log render when position actually changes (not on every render)
+  useEffect(() => {
+    if (isVisible && Object.values(validPosition).some(v => v !== undefined)) {
+      console.log(`🎨 Rendering TutorialModal for step "${step.id}"`, {
+        validPosition,
+        hasAllValues: Object.values(validPosition).some(v => v !== undefined)
+      })
+    }
+  }, [isVisible, validPosition.top, validPosition.left, validPosition.bottom, validPosition.right, step.id])
 
   return (
     <>
