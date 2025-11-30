@@ -12,16 +12,15 @@ import {
 import { processTopSongs } from '@/lib/top-songs'
 
 /**
- * Vercel Cron Job endpoint for syncing Top Songs lists
- * This endpoint should be called daily by Vercel Cron
+ * Cron Job endpoint for syncing Top Songs lists
  * 
- * To configure in vercel.json:
- * {
- *   "crons": [{
- *     "path": "/api/cron/sync-top-songs",
- *     "schedule": "0 2 * * *"  // Daily at 2 AM UTC
- *   }]
- * }
+ * This endpoint can be called:
+ * 1. Manually via API with CRON_SECRET: GET /api/cron/sync-top-songs with header Authorization: Bearer <CRON_SECRET>
+ * 2. Via external cron service (e.g., cron-job.org) calling this endpoint daily
+ * 3. Via Vercel Cron (if you upgrade to a plan that supports more than 2 cron jobs)
+ * 
+ * Note: Vercel's free/hobby plan limits you to 2 cron jobs. If you need automated syncing,
+ * use an external cron service or upgrade your Vercel plan.
  */
 export async function GET(request: NextRequest) {
   // Verify this is a cron request

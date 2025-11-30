@@ -4,12 +4,6 @@
   "installCommand": "npm install",
   "env": {
     "PRISMA_GENERATE_DATAPROXY": "false"
-  },
-  "crons": [
-    {
-      "path": "/api/cron/sync-top-songs",
-      "schedule": "0 2 * * *"
-    }
-  ]
+  }
 }
 
