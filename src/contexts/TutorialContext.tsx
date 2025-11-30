@@ -67,7 +67,7 @@ export function TutorialProvider({
             const isStepValidForPage = 
               (step === 'create-list' && currentPath === '/') ||
               (step === 'share' && currentPath.startsWith('/lists/')) ||
-              (['title', 'description', 'price', 'public', 'source-type', 'connect-spotify', 'connect-apple-music', 'music-url', 'manual-item', 'save'].includes(step) && currentPath === '/create')
+              (['source-type', 'title', 'description', 'price', 'public', 'connect-spotify', 'connect-apple-music', 'music-url', 'manual-item', 'save'].includes(step) && currentPath === '/create')
             
             if (isStepValidForPage) {
               console.log('TutorialContext: Resuming tutorial from localStorage', progress)
