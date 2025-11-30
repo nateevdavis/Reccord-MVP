@@ -53,31 +53,63 @@ export default function TutorialModal({ step }: TutorialModalProps) {
 
       const target = targetRef.current
       const rect = target.getBoundingClientRect()
-      const scrollY = window.scrollY
-      const scrollX = window.scrollX
-
-      // Use the exact same simple positioning logic that worked for steps 1-5
-      // But recalculate on scroll so modal "sticks" to target
+      
+      // For fixed positioning, values are relative to viewport (not document)
+      // So we use rect values directly without scrollY/scrollX
       const positions: Record<string, { top?: number; left?: number; bottom?: number; right?: number }> = {
         top: {
-          bottom: window.innerHeight - rect.top - scrollY + 12,
-          left: rect.left + scrollX + rect.width / 2,
+          bottom: window.innerHeight - rect.top + 12,
+          left: rect.left + rect.width / 2,
         },
         bottom: {
-          top: rect.bottom + scrollY + 12,
-          left: rect.left + scrollX + rect.width / 2,
+          top: rect.bottom + 12,
+          left: rect.left + rect.width / 2,
         },
         left: {
-          top: rect.top + scrollY + rect.height / 2,
-          right: window.innerWidth - rect.left - scrollX + 12,
+          top: rect.top + rect.height / 2,
+          right: window.innerWidth - rect.left + 12,
         },
         right: {
-          top: rect.top + scrollY + rect.height / 2,
-          left: rect.right + scrollX + 12,
+          top: rect.top + rect.height / 2,
+          left: rect.right + 12,
         },
       }
 
       const calculatedPosition = positions[step.position] || positions.bottom
+      
+      // Ensure modal stays within viewport
+      const modalWidth = 320
+      const modalHeight = 200
+      const minMargin = 16
+      
+      // Adjust horizontal position if modal would go off-screen
+      if (calculatedPosition.left !== undefined) {
+        const halfWidth = modalWidth / 2
+        if (calculatedPosition.left - halfWidth < minMargin) {
+          calculatedPosition.left = minMargin + halfWidth
+        } else if (calculatedPosition.left + halfWidth > window.innerWidth - minMargin) {
+          calculatedPosition.left = window.innerWidth - minMargin - halfWidth
+        }
+      }
+      
+      // Adjust vertical position if modal would go off-screen
+      if (calculatedPosition.top !== undefined) {
+        if (calculatedPosition.top < minMargin) {
+          calculatedPosition.top = minMargin
+        } else if (calculatedPosition.top + modalHeight > window.innerHeight - minMargin) {
+          calculatedPosition.top = window.innerHeight - modalHeight - minMargin
+        }
+      }
+      
+      if (calculatedPosition.bottom !== undefined) {
+        const bottomValue = calculatedPosition.bottom
+        if (bottomValue < minMargin) {
+          calculatedPosition.bottom = minMargin
+        } else if (bottomValue - modalHeight < minMargin) {
+          calculatedPosition.bottom = modalHeight + minMargin
+        }
+      }
+
       setPosition(calculatedPosition)
     }
 
