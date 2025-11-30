@@ -407,11 +407,18 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       const data = await res.json()
 
       if (res.ok && data.list) {
-        // Advance to share step if in tutorial
+        // Redirect first, then the list page will handle advancing to share step
+        // Use window.location.href for reliable navigation during tutorial
         if (isActive && currentStep === 'save') {
+          // Advance to share step before redirect so it's ready on the list page
           nextStep()
+          // Use a small delay to ensure state is updated before redirect
+          setTimeout(() => {
+            window.location.href = `/lists/${data.list.slug}`
+          }, 100)
+        } else {
+          router.push(`/lists/${data.list.slug}`)
         }
-        router.push(`/lists/${data.list.slug}`)
       } else {
         console.error('Error saving list:', data)
         console.error('Payload sent:', JSON.stringify(payload, null, 2))
