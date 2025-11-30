@@ -407,15 +407,12 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       const data = await res.json()
 
       if (res.ok && data.list) {
-        // Redirect first, then the list page will handle advancing to share step
-        // Use window.location.href for reliable navigation during tutorial
+        // Redirect to list page - TutorialShareStep component will handle advancing to share step
+        // Use window.location.href during tutorial to ensure reliable navigation
         if (isActive && currentStep === 'save') {
-          // Advance to share step before redirect so it's ready on the list page
-          nextStep()
-          // Use a small delay to ensure state is updated before redirect
-          setTimeout(() => {
-            window.location.href = `/lists/${data.list.slug}`
-          }, 100)
+          // Don't call nextStep() here - let TutorialShareStep handle it after redirect
+          // Use window.location.href for reliable full-page navigation during tutorial
+          window.location.href = `/lists/${data.list.slug}`
         } else {
           router.push(`/lists/${data.list.slug}`)
         }
