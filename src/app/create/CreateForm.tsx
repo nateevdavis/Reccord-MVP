@@ -363,6 +363,8 @@ export default function CreateForm({ listId }: { listId: string | null }) {
         router.push(`/lists/${data.list.slug}`)
       } else {
         console.error('Error saving list:', data)
+        console.error('Payload sent:', JSON.stringify(payload, null, 2))
+        console.error('Response status:', res.status)
         alert(data.error || 'Failed to save list')
         setLoading(false)
       }

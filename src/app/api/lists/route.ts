@@ -55,7 +55,25 @@ export async function POST(request: NextRequest) {
     const userId = await requireAuth()
     const body = await request.json()
     console.log('Creating list with payload:', JSON.stringify(body, null, 2))
-    const validated = createListSchema.parse(body)
+    
+    // Validate the request body
+    let validated
+    try {
+      validated = createListSchema.parse(body)
+    } catch (validationError) {
+      if (validationError instanceof z.ZodError) {
+        console.error('Validation error details:', JSON.stringify(validationError.errors, null, 2))
+        console.error('Received body:', JSON.stringify(body, null, 2))
+        return NextResponse.json(
+          { 
+            error: validationError.errors[0].message,
+            details: validationError.errors 
+          },
+          { status: 400 }
+        )
+      }
+      throw validationError
+    }
 
     const baseSlug = generateSlug(validated.name)
     const slug = await ensureUniqueSlug(baseSlug)
