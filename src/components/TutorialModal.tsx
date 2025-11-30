@@ -205,21 +205,23 @@ export default function TutorialModal({ step }: TutorialModalProps) {
 
     findAndShowTarget()
 
-    // Check if user is typing in an input field
+    // Check if ANY input field is focused and if our modal would cover it
     const checkInputFocus = () => {
       const activeElement = document.activeElement
-      const isInputFocused = activeElement && (
+      const isAnyInputFocused = activeElement && (
         activeElement.tagName === 'INPUT' || 
         activeElement.tagName === 'TEXTAREA'
       )
       
-      // Check if the focused input is the target element or a child of it
-      if (isInputFocused && targetRef.current) {
-        const isTargetInput = activeElement === targetRef.current || 
-          targetRef.current.contains(activeElement as Node)
-        setIsInputFocused(isTargetInput && isInputFocused)
+      if (isAnyInputFocused && targetRef.current) {
+        // Update position which will check if modal covers the focused input
+        updatePosition()
       } else {
         setIsInputFocused(false)
+        // Still update position in case input was just unfocused
+        if (targetRef.current) {
+          updatePosition()
+        }
       }
     }
 
