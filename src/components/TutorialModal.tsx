@@ -52,145 +52,55 @@ export default function TutorialModal({ step }: TutorialModalProps) {
         targetRef.current = target
         cleanupTarget = target
         
-        // Calculate position with viewport boundary checks
-        const rect = target.getBoundingClientRect()
-        const scrollY = window.scrollY
-        const scrollX = window.scrollX
-        const viewportWidth = window.innerWidth
-        const viewportHeight = window.innerHeight
-        const modalWidth = 320 // w-80 = 320px
-        const modalHeight = 250 // Approximate height with padding
-        const spacing = 12
-        const minMargin = 16 // Minimum margin from viewport edges
-
-        // Calculate positions with viewport boundary checks
-        let calculatedPosition: { top?: number; left?: number; bottom?: number; right?: number } = {}
-
-        if (step.position === 'top') {
-          // Position above, but check if there's enough space
-          const spaceAbove = rect.top
-          if (spaceAbove >= modalHeight + spacing) {
-            // Enough space above
-            calculatedPosition = {
-              bottom: viewportHeight - rect.top + scrollY + spacing,
-              left: rect.left + scrollX + rect.width / 2,
-            }
-          } else {
-            // Not enough space above, position below instead
-            calculatedPosition = {
-              top: rect.bottom + scrollY + spacing,
-              left: rect.left + scrollX + rect.width / 2,
-            }
-          }
-        } else if (step.position === 'bottom') {
-          // Position below, but check if there's enough space
-          const spaceBelow = viewportHeight - rect.bottom
-          if (spaceBelow >= modalHeight + spacing) {
-            // Enough space below
-            calculatedPosition = {
-              top: rect.bottom + scrollY + spacing,
-              left: rect.left + scrollX + rect.width / 2,
-            }
-          } else {
-            // Not enough space below, try positioning above
-            const spaceAbove = rect.top
-            if (spaceAbove >= modalHeight + spacing) {
-              calculatedPosition = {
-                bottom: viewportHeight - rect.top + scrollY + spacing,
-                left: rect.left + scrollX + rect.width / 2,
-              }
-            } else {
-              // Not enough space above or below, position in viewport center vertically
-              calculatedPosition = {
-                top: scrollY + viewportHeight / 2,
-                left: rect.left + scrollX + rect.width / 2,
-              }
-            }
-          }
-        } else if (step.position === 'left') {
-          calculatedPosition = {
-            top: rect.top + scrollY + rect.height / 2,
-            right: viewportWidth - rect.left + scrollX + spacing,
-          }
-        } else if (step.position === 'right') {
-          calculatedPosition = {
-            top: rect.top + scrollY + rect.height / 2,
-            left: rect.right + scrollX + spacing,
-          }
-        } else {
-          // Default to bottom with fallback
-          const spaceBelow = viewportHeight - rect.bottom
-          if (spaceBelow >= modalHeight + spacing) {
-            calculatedPosition = {
-              top: rect.bottom + scrollY + spacing,
-              left: rect.left + scrollX + rect.width / 2,
-            }
-          } else {
-            // Fallback to center if not enough space
-            calculatedPosition = {
-              top: scrollY + viewportHeight / 2,
-              left: rect.left + scrollX + rect.width / 2,
-            }
-          }
-        }
-
-        // Ensure modal stays within viewport horizontally
-        // Account for translateX(-50%) which centers the modal
-        if (calculatedPosition.left !== undefined) {
-          const centerX = calculatedPosition.left
-          const halfModalWidth = modalWidth / 2
-          
-          // Check if modal would go off left edge
-          if (centerX - halfModalWidth < minMargin) {
-            calculatedPosition.left = minMargin + halfModalWidth
-          }
-          // Check if modal would go off right edge
-          else if (centerX + halfModalWidth > viewportWidth - minMargin) {
-            calculatedPosition.left = viewportWidth - minMargin - halfModalWidth
-          }
-        }
-
-        // Ensure modal stays within viewport vertically
-        if (calculatedPosition.top !== undefined) {
-          if (calculatedPosition.top - scrollY < minMargin) {
-            // Too close to top, adjust
-            calculatedPosition.top = scrollY + minMargin
-          } else if (calculatedPosition.top - scrollY + modalHeight > viewportHeight - minMargin) {
-            // Too close to bottom, adjust
-            calculatedPosition.top = scrollY + viewportHeight - modalHeight - minMargin
-          }
-        }
-
-        if (calculatedPosition.bottom !== undefined) {
-          const bottomFromTop = viewportHeight - (calculatedPosition.bottom - scrollY)
-          if (bottomFromTop < minMargin) {
-            calculatedPosition.bottom = viewportHeight - minMargin + scrollY
-          } else if (bottomFromTop - modalHeight < minMargin) {
-            calculatedPosition.bottom = modalHeight + minMargin + scrollY
-          }
-        }
-
-        console.log(`📍 Position calculated for step "${step.id}":`, {
-          position: calculatedPosition,
-          rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
-          viewport: { width: viewportWidth, height: viewportHeight },
-          scroll: { x: scrollX, y: scrollY },
-          willBeVisible: {
-            left: calculatedPosition.left ? (calculatedPosition.left - modalWidth/2 >= minMargin && calculatedPosition.left + modalWidth/2 <= viewportWidth - minMargin) : 'N/A',
-            top: calculatedPosition.top ? (calculatedPosition.top - scrollY >= minMargin && calculatedPosition.top - scrollY + modalHeight <= viewportHeight - minMargin) : 'N/A',
-          }
-        })
-
-        setPosition(calculatedPosition)
-
         // Highlight target element with subtle outline (non-blocking)
         target.style.outline = '2px solid rgba(59, 130, 246, 0.4)'
         target.style.outlineOffset = '2px'
         target.style.transition = 'outline 0.2s'
         target.style.pointerEvents = 'auto' // Ensure target remains clickable
+        
+        // Scroll target into view smoothly to ensure it's visible
+        target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+        
+        // Wait a moment for scroll to complete, then calculate position
+        setTimeout(() => {
+          const rect = target.getBoundingClientRect()
+          const scrollY = window.scrollY
+          const scrollX = window.scrollX
 
-        setIsVisible(true)
-        console.log(`✅ Tutorial modal visible for step "${step.id}"`)
+          // Use simple positioning logic that worked for steps 1-5
+          const positions: Record<string, { top?: number; left?: number; bottom?: number; right?: number }> = {
+            top: {
+              bottom: window.innerHeight - rect.top - scrollY + 12,
+              left: rect.left + scrollX + rect.width / 2,
+            },
+            bottom: {
+              top: rect.bottom + scrollY + 12,
+              left: rect.left + scrollX + rect.width / 2,
+            },
+            left: {
+              top: rect.top + scrollY + rect.height / 2,
+              right: window.innerWidth - rect.left - scrollX + 12,
+            },
+            right: {
+              top: rect.top + scrollY + rect.height / 2,
+              left: rect.right + scrollX + 12,
+            },
+          }
+
+          const calculatedPosition = positions[step.position] || positions.bottom
+
+          console.log(`📍 Position calculated for step "${step.id}":`, {
+            position: calculatedPosition,
+            rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
+            viewport: { width: window.innerWidth, height: window.innerHeight },
+            scroll: { x: scrollX, y: scrollY }
+          })
+
+          setPosition(calculatedPosition)
+          setIsVisible(true)
+          console.log(`✅ Tutorial modal visible for step "${step.id}"`)
+        }, 300) // Wait for scroll animation
+        
         return true
       } else if (retryCount < maxRetries) {
         retryCount++
