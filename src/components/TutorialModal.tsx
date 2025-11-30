@@ -45,9 +45,41 @@ export default function TutorialModal({ step }: TutorialModalProps) {
     const maxRetries = 20 // Increased retries for slower renders
     const retryDelay = 100
     let timeoutId: NodeJS.Timeout | null = null
-    let positionTimeoutId: NodeJS.Timeout | null = null
     let cleanupTarget: HTMLElement | null = null
     let hasSetPosition = false // Prevent multiple position updates
+
+    const updatePosition = () => {
+      if (!targetRef.current) return
+
+      const target = targetRef.current
+      const rect = target.getBoundingClientRect()
+      const scrollY = window.scrollY
+      const scrollX = window.scrollX
+
+      // Use the exact same simple positioning logic that worked for steps 1-5
+      // But recalculate on scroll so modal "sticks" to target
+      const positions: Record<string, { top?: number; left?: number; bottom?: number; right?: number }> = {
+        top: {
+          bottom: window.innerHeight - rect.top - scrollY + 12,
+          left: rect.left + scrollX + rect.width / 2,
+        },
+        bottom: {
+          top: rect.bottom + scrollY + 12,
+          left: rect.left + scrollX + rect.width / 2,
+        },
+        left: {
+          top: rect.top + scrollY + rect.height / 2,
+          right: window.innerWidth - rect.left - scrollX + 12,
+        },
+        right: {
+          top: rect.top + scrollY + rect.height / 2,
+          left: rect.right + scrollX + 12,
+        },
+      }
+
+      const calculatedPosition = positions[step.position] || positions.bottom
+      setPosition(calculatedPosition)
+    }
 
     const findAndShowTarget = () => {
       const target = document.querySelector(step.targetSelector) as HTMLElement
@@ -67,40 +99,8 @@ export default function TutorialModal({ step }: TutorialModalProps) {
         target.style.transition = 'outline 0.2s'
         target.style.pointerEvents = 'auto' // Ensure target remains clickable
         
-        // Use the exact same simple positioning logic that worked for steps 1-5
-        const rect = target.getBoundingClientRect()
-        const scrollY = window.scrollY
-        const scrollX = window.scrollX
-
-        const positions: Record<string, { top?: number; left?: number; bottom?: number; right?: number }> = {
-          top: {
-            bottom: window.innerHeight - rect.top - scrollY + 12,
-            left: rect.left + scrollX + rect.width / 2,
-          },
-          bottom: {
-            top: rect.bottom + scrollY + 12,
-            left: rect.left + scrollX + rect.width / 2,
-          },
-          left: {
-            top: rect.top + scrollY + rect.height / 2,
-            right: window.innerWidth - rect.left - scrollX + 12,
-          },
-          right: {
-            top: rect.top + scrollY + rect.height / 2,
-            left: rect.right + scrollX + 12,
-          },
-        }
-
-        const calculatedPosition = positions[step.position] || positions.bottom
-
-        console.log(`📍 Position calculated for step "${step.id}":`, {
-          position: calculatedPosition,
-          rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
-          viewport: { width: window.innerWidth, height: window.innerHeight },
-          scroll: { x: scrollX, y: scrollY }
-        })
-
-        setPosition(calculatedPosition)
+        // Calculate initial position
+        updatePosition()
         setIsVisible(true)
         hasSetPosition = true
         console.log(`✅ Tutorial modal visible for step "${step.id}"`)
@@ -130,18 +130,33 @@ export default function TutorialModal({ step }: TutorialModalProps) {
 
     findAndShowTarget()
 
+    // Update position on scroll/resize so modal "sticks" to target element
+    const handleScroll = () => {
+      if (isActive && currentStep === step.id && targetRef.current) {
+        updatePosition()
+      }
+    }
+
+    const handleResize = () => {
+      if (isActive && currentStep === step.id && targetRef.current) {
+        updatePosition()
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll, true) // Use capture phase to catch all scrolls
+    window.addEventListener('resize', handleResize)
+
     return () => {
       if (timeoutId) {
         clearTimeout(timeoutId)
-      }
-      if (positionTimeoutId) {
-        clearTimeout(positionTimeoutId)
       }
       if (cleanupTarget) {
         cleanupTarget.style.outline = ''
         cleanupTarget.style.outlineOffset = ''
         cleanupTarget.style.pointerEvents = ''
       }
+      window.removeEventListener('scroll', handleScroll, true)
+      window.removeEventListener('resize', handleResize)
       hasSetPosition = false // Reset flag on cleanup
     }
   }, [isActive, currentStep, step.id, step.targetSelector, step.position])
