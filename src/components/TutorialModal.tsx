@@ -205,10 +205,29 @@ export default function TutorialModal({ step }: TutorialModalProps) {
 
     findAndShowTarget()
 
+    // Check if user is typing in an input field
+    const checkInputFocus = () => {
+      const activeElement = document.activeElement
+      const isInputFocused = activeElement && (
+        activeElement.tagName === 'INPUT' || 
+        activeElement.tagName === 'TEXTAREA'
+      )
+      
+      // Check if the focused input is the target element or a child of it
+      if (isInputFocused && targetRef.current) {
+        const isTargetInput = activeElement === targetRef.current || 
+          targetRef.current.contains(activeElement as Node)
+        setIsInputFocused(isTargetInput && isInputFocused)
+      } else {
+        setIsInputFocused(false)
+      }
+    }
+
     // Update position on scroll/resize so modal "sticks" to target element
     const handleScroll = () => {
       if (isActive && currentStep === step.id && targetRef.current) {
         updatePosition()
+        checkInputFocus()
       }
     }
 
@@ -218,8 +237,33 @@ export default function TutorialModal({ step }: TutorialModalProps) {
       }
     }
 
+    const handleFocus = () => {
+      if (isActive && currentStep === step.id) {
+        checkInputFocus()
+        // Small delay to let focus settle, then update position
+        setTimeout(() => {
+          if (targetRef.current) {
+            updatePosition()
+          }
+        }, 50)
+      }
+    }
+
+    const handleBlur = () => {
+      if (isActive && currentStep === step.id) {
+        setTimeout(() => {
+          setIsInputFocused(false)
+          if (targetRef.current) {
+            updatePosition()
+          }
+        }, 100) // Small delay to check if focus moved to another input
+      }
+    }
+
     window.addEventListener('scroll', handleScroll, true) // Use capture phase to catch all scrolls
     window.addEventListener('resize', handleResize)
+    document.addEventListener('focusin', handleFocus)
+    document.addEventListener('focusout', handleBlur)
 
     return () => {
       if (timeoutId) {
@@ -240,7 +284,8 @@ export default function TutorialModal({ step }: TutorialModalProps) {
 
   // Removed debug logging useEffect that was causing infinite renders
 
-  if (!isVisible || !targetRef.current) {
+  // Hide modal if user is actively typing in the target input field
+  if (!isVisible || !targetRef.current || isInputFocused) {
     return null
   }
 
