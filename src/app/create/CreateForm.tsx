@@ -488,6 +488,74 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {isActive && currentStep === 'source-type' && getStepById('source-type') && (
+          <TutorialModal step={getStepById('source-type')!} />
+        )}
+        <div data-tutorial="source-type">
+          <label className="mb-2 block text-sm font-medium text-gray-700">
+            How do you want to make your list?
+          </label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSourceType('MANUAL')
+                // Advance tutorial if on source-type step
+                if (isActive && currentStep === 'source-type') {
+                  setTimeout(() => nextStep({ sourceType: 'MANUAL' }), 300)
+                }
+              }}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                sourceType === 'MANUAL'
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Manual
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSourceType('SPOTIFY')
+                // Advance tutorial if on source-type step
+                if (isActive && currentStep === 'source-type') {
+                  setTimeout(() => {
+                    setContext({ sourceType: 'SPOTIFY', spotifyConnected, appleMusicConnected })
+                    nextStep({ sourceType: 'SPOTIFY', spotifyConnected, appleMusicConnected })
+                  }, 300)
+                }
+              }}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                sourceType === 'SPOTIFY'
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Spotify
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSourceType('APPLE_MUSIC')
+                // Advance tutorial if on source-type step
+                if (isActive && currentStep === 'source-type') {
+                  setTimeout(() => {
+                    setContext({ sourceType: 'APPLE_MUSIC', spotifyConnected, appleMusicConnected })
+                    nextStep({ sourceType: 'APPLE_MUSIC', spotifyConnected, appleMusicConnected })
+                  }, 300)
+                }
+              }}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                sourceType === 'APPLE_MUSIC'
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Apple Music
+            </button>
+          </div>
+        </div>
+
         {isActive && currentStep === 'title' && getStepById('title') && (
           <TutorialModal step={getStepById('title')!} />
         )}
@@ -572,74 +640,6 @@ export default function CreateForm({ listId }: { listId: string | null }) {
             <StripeConnectButton />
           </div>
         )}
-
-        {isActive && currentStep === 'source-type' && getStepById('source-type') && (
-          <TutorialModal step={getStepById('source-type')!} />
-        )}
-        <div data-tutorial="source-type">
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            How do you want to make your list?
-          </label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setSourceType('MANUAL')
-                // Advance tutorial if on source-type step
-                if (isActive && currentStep === 'source-type') {
-                  setTimeout(() => nextStep({ sourceType: 'MANUAL' }), 300)
-                }
-              }}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                sourceType === 'MANUAL'
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Manual
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSourceType('SPOTIFY')
-                // Advance tutorial if on source-type step
-                if (isActive && currentStep === 'source-type') {
-                  setTimeout(() => {
-                    setContext({ sourceType: 'SPOTIFY', spotifyConnected, appleMusicConnected })
-                    nextStep({ sourceType: 'SPOTIFY', spotifyConnected, appleMusicConnected })
-                  }, 300)
-                }
-              }}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                sourceType === 'SPOTIFY'
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Spotify
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSourceType('APPLE_MUSIC')
-                // Advance tutorial if on source-type step
-                if (isActive && currentStep === 'source-type') {
-                  setTimeout(() => {
-                    setContext({ sourceType: 'APPLE_MUSIC', spotifyConnected, appleMusicConnected })
-                    nextStep({ sourceType: 'APPLE_MUSIC', spotifyConnected, appleMusicConnected })
-                  }, 300)
-                }
-              }}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                sourceType === 'APPLE_MUSIC'
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Apple Music
-            </button>
-          </div>
-        </div>
 
         {sourceType === 'SPOTIFY' && (
           <div className="space-y-4">
