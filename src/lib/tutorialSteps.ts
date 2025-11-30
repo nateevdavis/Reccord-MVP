@@ -5,6 +5,8 @@ export type TutorialStepId =
   | 'price'
   | 'public'
   | 'source-type'
+  | 'connect-spotify'
+  | 'connect-apple-music'
   | 'music-url'
   | 'manual-item'
   | 'save'
@@ -60,12 +62,36 @@ export const tutorialSteps: TutorialStep[] = [
     copy: 'Choose how you want to add items to your list.',
   },
   {
+    id: 'connect-spotify',
+    targetSelector: '[data-tutorial="connect-spotify"]',
+    position: 'bottom',
+    copy: 'Connect your Spotify account to sync playlists.',
+    conditional: (context) => {
+      return context?.sourceType === 'SPOTIFY' && !context?.spotifyConnected
+    },
+  },
+  {
+    id: 'connect-apple-music',
+    targetSelector: '[data-tutorial="connect-apple-music"]',
+    position: 'bottom',
+    copy: 'Connect your Apple Music account to sync playlists.',
+    conditional: (context) => {
+      return context?.sourceType === 'APPLE_MUSIC' && !context?.appleMusicConnected
+    },
+  },
+  {
     id: 'music-url',
     targetSelector: '[data-tutorial="music-url"]',
     position: 'bottom',
     copy: 'Paste a Spotify or Apple Music URL to auto-add items.',
     conditional: (context) => {
-      return context?.sourceType === 'SPOTIFY' || context?.sourceType === 'APPLE_MUSIC'
+      if (context?.sourceType === 'SPOTIFY') {
+        return context?.spotifyConnected === true
+      }
+      if (context?.sourceType === 'APPLE_MUSIC') {
+        return context?.appleMusicConnected === true
+      }
+      return false
     },
   },
   {

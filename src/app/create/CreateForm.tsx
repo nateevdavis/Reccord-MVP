@@ -39,6 +39,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
   const [stripeStatus, setStripeStatus] = useState<string>('not_connected')
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(!!listId)
+  const [hasExistingLists, setHasExistingLists] = useState(false)
 
   // Extract specific params outside useEffect to avoid infinite loops
   const spotifyConnectedParam = searchParams.get('spotify_connected')
@@ -52,9 +53,23 @@ export default function CreateForm({ listId }: { listId: string | null }) {
     // Check if we just connected (from callback) - check this first
     if (spotifyConnectedParam === '1') {
       setSpotifyConnected(true)
+      // Advance tutorial if waiting for connection
+      if (isActive && (currentStep === 'connect-spotify')) {
+        setTimeout(() => {
+          setContext({ sourceType, spotifyConnected: true, appleMusicConnected })
+          nextStep({ sourceType, spotifyConnected: true, appleMusicConnected })
+        }, 300)
+      }
     }
     if (appleMusicConnectedParam === '1') {
       setAppleMusicConnected(true)
+      // Advance tutorial if waiting for connection
+      if (isActive && (currentStep === 'connect-apple-music')) {
+        setTimeout(() => {
+          setContext({ sourceType, spotifyConnected, appleMusicConnected: true })
+          nextStep({ sourceType, spotifyConnected, appleMusicConnected: true })
+        }, 300)
+      }
     }
     if (stripeSuccessParam === '1') {
       setStripeConnected(true)
@@ -167,7 +182,8 @@ export default function CreateForm({ listId }: { listId: string | null }) {
     // Start tutorial if on create page (not edit) and tutorial hasn't started
     // IMPORTANT: Check if tutorial is already active from localStorage resume
     // If it is, don't try to start it again
-    if (!listId && !isCompleted) {
+    // Also check if user already has lists - if they do, don't start tutorial
+    if (!listId && !isCompleted && !hasExistingLists) {
       const hasVisitedCreateKey = 'reccord_has_visited_create'
       
       // Check if user has visited /create before
@@ -265,12 +281,16 @@ export default function CreateForm({ listId }: { listId: string | null }) {
   }, [listId, spotifyConnectedParam, appleMusicConnectedParam, stripeSuccessParam, tutorialParam, isActive, isCompleted])
 
 
-  // Update tutorial context when sourceType changes
+  // Update tutorial context when sourceType or connection status changes
   useEffect(() => {
     if (isActive) {
-      setContext({ sourceType })
+      setContext({ 
+        sourceType,
+        spotifyConnected,
+        appleMusicConnected
+      })
     }
-  }, [sourceType, isActive, setContext])
+  }, [sourceType, spotifyConnected, appleMusicConnected, isActive, setContext])
 
   const addItem = () => {
     setItems([...items, { name: '', description: '', url: '' }])
@@ -558,7 +578,10 @@ export default function CreateForm({ listId }: { listId: string | null }) {
                 setSourceType('SPOTIFY')
                 // Advance tutorial if on source-type step
                 if (isActive && currentStep === 'source-type') {
-                  setTimeout(() => nextStep({ sourceType: 'SPOTIFY' }), 300)
+                  setTimeout(() => {
+                    setContext({ sourceType: 'SPOTIFY', spotifyConnected, appleMusicConnected })
+                    nextStep({ sourceType: 'SPOTIFY', spotifyConnected, appleMusicConnected })
+                  }, 300)
                 }
               }}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
@@ -575,7 +598,10 @@ export default function CreateForm({ listId }: { listId: string | null }) {
                 setSourceType('APPLE_MUSIC')
                 // Advance tutorial if on source-type step
                 if (isActive && currentStep === 'source-type') {
-                  setTimeout(() => nextStep({ sourceType: 'APPLE_MUSIC' }), 300)
+                  setTimeout(() => {
+                    setContext({ sourceType: 'APPLE_MUSIC', spotifyConnected, appleMusicConnected })
+                    nextStep({ sourceType: 'APPLE_MUSIC', spotifyConnected, appleMusicConnected })
+                  }, 300)
                 }
               }}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
@@ -591,7 +617,10 @@ export default function CreateForm({ listId }: { listId: string | null }) {
 
         {sourceType === 'SPOTIFY' && (
           <div className="space-y-4">
-            <div>
+            {isActive && currentStep === 'connect-spotify' && getStepById('connect-spotify') && (
+              <TutorialModal step={getStepById('connect-spotify')!} />
+            )}
+            <div data-tutorial="connect-spotify">
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Connect Spotify
               </label>
@@ -628,7 +657,10 @@ export default function CreateForm({ listId }: { listId: string | null }) {
 
         {sourceType === 'APPLE_MUSIC' && (
           <div className="space-y-4">
-            <div>
+            {isActive && currentStep === 'connect-apple-music' && getStepById('connect-apple-music') && (
+              <TutorialModal step={getStepById('connect-apple-music')!} />
+            )}
+            <div data-tutorial="connect-apple-music">
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Connect Apple Music
               </label>
