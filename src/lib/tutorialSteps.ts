@@ -32,6 +32,12 @@ export const tutorialSteps: TutorialStep[] = [
     skipText: 'Skip tutorial',
   },
   {
+    id: 'source-type',
+    targetSelector: '[data-tutorial="source-type"]',
+    position: 'bottom',
+    copy: 'Choose how you want to add items to your list.',
+  },
+  {
     id: 'title',
     targetSelector: '[data-tutorial="title"]',
     position: 'bottom',
@@ -54,12 +60,6 @@ export const tutorialSteps: TutorialStep[] = [
     targetSelector: '[data-tutorial="public"]',
     position: 'bottom',
     copy: 'Make your list public to start building your audience.',
-  },
-  {
-    id: 'source-type',
-    targetSelector: '[data-tutorial="source-type"]',
-    position: 'bottom',
-    copy: 'Choose how you want to add items to your list.',
   },
   {
     id: 'connect-spotify',

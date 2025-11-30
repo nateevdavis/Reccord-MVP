@@ -450,7 +450,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       // If tutorial is active but on a step that doesn't exist on this page (like 'create-list' or 'share'),
       // it's probably stale data - clear it and restart
       if (isActive && currentStep && typeof window !== 'undefined') {
-        const validStepsForCreatePage = ['title', 'description', 'price', 'public', 'source-type', 'music-url', 'manual-item', 'save']
+        const validStepsForCreatePage = ['source-type', 'title', 'description', 'price', 'public', 'connect-spotify', 'connect-apple-music', 'music-url', 'manual-item', 'save']
         if (!validStepsForCreatePage.includes(currentStep)) {
           console.warn(`Tutorial step "${currentStep}" is not valid for /create page, clearing stale localStorage`)
           localStorage.removeItem('reccord_tutorial_progress')
