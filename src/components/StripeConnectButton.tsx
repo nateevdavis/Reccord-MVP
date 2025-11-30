@@ -80,7 +80,10 @@ export default function StripeConnectButton(props: StripeConnectButtonProps = {}
       })
       const data = await response.json()
       if (data.url) {
-        window.location.href = data.url
+        // Open Stripe onboarding in a new tab
+        window.open(data.url, '_blank')
+        // Keep loading state - user will return via callback URL
+        // Don't set loading to false here since we're waiting for them to complete in new tab
       } else {
         alert('Failed to create onboarding link')
         setLoading(false)

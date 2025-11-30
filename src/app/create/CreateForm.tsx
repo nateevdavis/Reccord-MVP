@@ -658,9 +658,6 @@ export default function CreateForm({ listId }: { listId: string | null }) {
 
         {sourceType === 'MANUAL' && (
           <div className="space-y-4">
-            {isActive && currentStep === 'manual-item' && getStepById('manual-item') && (
-              <TutorialModal step={getStepById('manual-item')!} />
-            )}
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium text-gray-700">
                 List items
@@ -721,6 +718,10 @@ export default function CreateForm({ listId }: { listId: string | null }) {
                 />
               </div>
             ))}
+            {/* Render tutorial modal after items are rendered so target element exists */}
+            {isActive && currentStep === 'manual-item' && getStepById('manual-item') && (
+              <TutorialModal step={getStepById('manual-item')!} />
+            )}
           </div>
         )}
 
