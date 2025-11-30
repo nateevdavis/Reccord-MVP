@@ -67,134 +67,43 @@ export default function TutorialModal({ step }: TutorialModalProps) {
         target.style.transition = 'outline 0.2s'
         target.style.pointerEvents = 'auto' // Ensure target remains clickable
         
-        // Scroll target into view with enough space for modal
-        // For bottom-positioned modals, ensure space below; for top, ensure space above
-        const scrollBlock = step.position === 'top' ? 'end' : step.position === 'bottom' ? 'start' : 'center'
-        target.scrollIntoView({ behavior: 'smooth', block: scrollBlock, inline: 'nearest' })
-        
-        // Wait a moment for scroll to complete, then calculate position (only once)
-        positionTimeoutId = setTimeout(() => {
-          // Double-check we're still on the same step
-          if (!isActive || currentStep !== step.id) {
-            return
-          }
+        // Use the exact same simple positioning logic that worked for steps 1-5
+        const rect = target.getBoundingClientRect()
+        const scrollY = window.scrollY
+        const scrollX = window.scrollX
 
-          const rect = target.getBoundingClientRect()
-          const scrollY = window.scrollY
-          const scrollX = window.scrollX
-          const viewportHeight = window.innerHeight
-          const viewportWidth = window.innerWidth
-          const modalHeight = 200 // Approximate modal height
-          const modalWidth = 320 // w-80 = 320px
-          const spacing = 12
-          const minMargin = 16
+        const positions: Record<string, { top?: number; left?: number; bottom?: number; right?: number }> = {
+          top: {
+            bottom: window.innerHeight - rect.top - scrollY + 12,
+            left: rect.left + scrollX + rect.width / 2,
+          },
+          bottom: {
+            top: rect.bottom + scrollY + 12,
+            left: rect.left + scrollX + rect.width / 2,
+          },
+          left: {
+            top: rect.top + scrollY + rect.height / 2,
+            right: window.innerWidth - rect.left - scrollX + 12,
+          },
+          right: {
+            top: rect.top + scrollY + rect.height / 2,
+            left: rect.right + scrollX + 12,
+          },
+        }
 
-          // Calculate base position with viewport checks
-          let calculatedPosition: { top?: number; left?: number; bottom?: number; right?: number } = {}
-          
-          if (step.position === 'top') {
-            // Position above
-            const spaceAbove = rect.top
-            if (spaceAbove >= modalHeight + spacing) {
-              calculatedPosition = {
-                bottom: viewportHeight - rect.top + scrollY + spacing,
-                left: rect.left + scrollX + rect.width / 2,
-              }
-            } else {
-              // Not enough space above, position below instead
-              calculatedPosition = {
-                top: rect.bottom + scrollY + spacing,
-                left: rect.left + scrollX + rect.width / 2,
-              }
-            }
-          } else if (step.position === 'bottom') {
-            // Position below
-            const spaceBelow = viewportHeight - rect.bottom
-            if (spaceBelow >= modalHeight + spacing) {
-              calculatedPosition = {
-                top: rect.bottom + scrollY + spacing,
-                left: rect.left + scrollX + rect.width / 2,
-              }
-            } else {
-              // Not enough space below, position above instead
-              const spaceAbove = rect.top
-              if (spaceAbove >= modalHeight + spacing) {
-                calculatedPosition = {
-                  bottom: viewportHeight - rect.top + scrollY + spacing,
-                  left: rect.left + scrollX + rect.width / 2,
-                }
-              } else {
-                // Not enough space either way, center vertically in viewport
-                calculatedPosition = {
-                  top: scrollY + (viewportHeight - modalHeight) / 2,
-                  left: rect.left + scrollX + rect.width / 2,
-                }
-              }
-            }
-          } else if (step.position === 'left') {
-            calculatedPosition = {
-              top: rect.top + scrollY + rect.height / 2,
-              right: viewportWidth - rect.left + scrollX + spacing,
-            }
-          } else if (step.position === 'right') {
-            calculatedPosition = {
-              top: rect.top + scrollY + rect.height / 2,
-              left: rect.right + scrollX + spacing,
-            }
-          } else {
-            // Default to bottom
-            calculatedPosition = {
-              top: rect.bottom + scrollY + spacing,
-              left: rect.left + scrollX + rect.width / 2,
-            }
-          }
+        const calculatedPosition = positions[step.position] || positions.bottom
 
-          // Ensure modal stays within viewport horizontally (account for translateX(-50%))
-          if (calculatedPosition.left !== undefined) {
-            const centerX = calculatedPosition.left
-            const halfWidth = modalWidth / 2
-            if (centerX - halfWidth < minMargin) {
-              calculatedPosition.left = minMargin + halfWidth
-            } else if (centerX + halfWidth > viewportWidth - minMargin) {
-              calculatedPosition.left = viewportWidth - minMargin - halfWidth
-            }
-          }
+        console.log(`📍 Position calculated for step "${step.id}":`, {
+          position: calculatedPosition,
+          rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          scroll: { x: scrollX, y: scrollY }
+        })
 
-          // Ensure modal stays within viewport vertically
-          if (calculatedPosition.top !== undefined) {
-            const topInViewport = calculatedPosition.top - scrollY
-            if (topInViewport < minMargin) {
-              calculatedPosition.top = scrollY + minMargin
-            } else if (topInViewport + modalHeight > viewportHeight - minMargin) {
-              calculatedPosition.top = scrollY + viewportHeight - modalHeight - minMargin
-            }
-          }
-
-          if (calculatedPosition.bottom !== undefined) {
-            const bottomInViewport = viewportHeight - (calculatedPosition.bottom - scrollY)
-            if (bottomInViewport < minMargin) {
-              calculatedPosition.bottom = viewportHeight - minMargin + scrollY
-            } else if (bottomInViewport - modalHeight < minMargin) {
-              calculatedPosition.bottom = modalHeight + minMargin + scrollY
-            }
-          }
-
-          console.log(`📍 Position calculated for step "${step.id}":`, {
-            position: calculatedPosition,
-            rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
-            viewport: { width: viewportWidth, height: viewportHeight },
-            scroll: { x: scrollX, y: scrollY },
-            willBeVisible: {
-              top: calculatedPosition.top ? (calculatedPosition.top - scrollY >= minMargin && calculatedPosition.top - scrollY + modalHeight <= viewportHeight - minMargin) : 'N/A',
-              left: calculatedPosition.left ? (calculatedPosition.left - modalWidth/2 >= minMargin && calculatedPosition.left + modalWidth/2 <= viewportWidth - minMargin) : 'N/A',
-            }
-          })
-
-          setPosition(calculatedPosition)
-          setIsVisible(true)
-          hasSetPosition = true
-          console.log(`✅ Tutorial modal visible for step "${step.id}"`)
-        }, 400) // Increased delay to ensure scroll completes
+        setPosition(calculatedPosition)
+        setIsVisible(true)
+        hasSetPosition = true
+        console.log(`✅ Tutorial modal visible for step "${step.id}"`)
         
         return true
       } else if (retryCount < maxRetries) {
