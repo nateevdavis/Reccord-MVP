@@ -52,31 +52,85 @@ export default function TutorialModal({ step }: TutorialModalProps) {
         targetRef.current = target
         cleanupTarget = target
         
-        // Calculate position
+        // Calculate position with viewport boundary checks
         const rect = target.getBoundingClientRect()
         const scrollY = window.scrollY
         const scrollX = window.scrollX
+        const viewportWidth = window.innerWidth
+        const viewportHeight = window.innerHeight
+        const modalWidth = 320 // w-80 = 320px
+        const modalHeight = 200 // Approximate height
+        const spacing = 12
 
-        const positions: Record<string, { top?: number; left?: number; bottom?: number; right?: number }> = {
-          top: {
-            bottom: window.innerHeight - rect.top - scrollY + 12,
-            left: rect.left + scrollX + rect.width / 2,
-          },
-          bottom: {
-            top: rect.bottom + scrollY + 12,
-            left: rect.left + scrollX + rect.width / 2,
-          },
-          left: {
+        // Calculate positions with viewport boundary checks
+        let calculatedPosition: { top?: number; left?: number; bottom?: number; right?: number } = {}
+
+        if (step.position === 'top') {
+          // Position above, but check if there's enough space
+          const spaceAbove = rect.top
+          if (spaceAbove >= modalHeight + spacing) {
+            calculatedPosition = {
+              bottom: viewportHeight - rect.top + scrollY + spacing,
+              left: rect.left + scrollX + rect.width / 2,
+            }
+          } else {
+            // Not enough space above, position below instead
+            calculatedPosition = {
+              top: rect.bottom + scrollY + spacing,
+              left: rect.left + scrollX + rect.width / 2,
+            }
+          }
+        } else if (step.position === 'bottom') {
+          // Position below, but check if there's enough space
+          const spaceBelow = viewportHeight - rect.bottom
+          if (spaceBelow >= modalHeight + spacing) {
+            calculatedPosition = {
+              top: rect.bottom + scrollY + spacing,
+              left: rect.left + scrollX + rect.width / 2,
+            }
+          } else {
+            // Not enough space below, position above instead
+            calculatedPosition = {
+              bottom: viewportHeight - rect.top + scrollY + spacing,
+              left: rect.left + scrollX + rect.width / 2,
+            }
+          }
+        } else if (step.position === 'left') {
+          calculatedPosition = {
             top: rect.top + scrollY + rect.height / 2,
-            right: window.innerWidth - rect.left - scrollX + 12,
-          },
-          right: {
+            right: viewportWidth - rect.left + scrollX + spacing,
+          }
+        } else if (step.position === 'right') {
+          calculatedPosition = {
             top: rect.top + scrollY + rect.height / 2,
-            left: rect.right + scrollX + 12,
-          },
+            left: rect.right + scrollX + spacing,
+          }
+        } else {
+          // Default to bottom
+          calculatedPosition = {
+            top: rect.bottom + scrollY + spacing,
+            left: rect.left + scrollX + rect.width / 2,
+          }
         }
 
-        setPosition(positions[step.position] || positions.bottom)
+        // Ensure modal stays within viewport horizontally
+        if (calculatedPosition.left !== undefined) {
+          const leftValue = calculatedPosition.left - modalWidth / 2 // Account for translateX(-50%)
+          if (leftValue < spacing) {
+            calculatedPosition.left = spacing + modalWidth / 2
+          } else if (leftValue + modalWidth > viewportWidth - spacing) {
+            calculatedPosition.left = viewportWidth - spacing - modalWidth / 2
+          }
+        }
+
+        console.log(`📍 Position calculated for step "${step.id}":`, {
+          position: calculatedPosition,
+          rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
+          viewport: { width: viewportWidth, height: viewportHeight },
+          scroll: { x: scrollX, y: scrollY }
+        })
+
+        setPosition(calculatedPosition)
 
         // Highlight target element with subtle outline (non-blocking)
         target.style.outline = '2px solid rgba(59, 130, 246, 0.4)'
@@ -123,7 +177,27 @@ export default function TutorialModal({ step }: TutorialModalProps) {
     }
   }, [isActive, currentStep, step.id, step.targetSelector, step.position])
 
-  if (!isVisible || !targetRef.current) return null
+  // Debug: Log render state
+  useEffect(() => {
+    if (isVisible && targetRef.current) {
+      console.log(`🎨 TutorialModal rendering for step "${step.id}"`, {
+        isVisible,
+        hasTarget: !!targetRef.current,
+        position,
+        targetElement: targetRef.current
+      })
+    } else {
+      console.log(`🚫 TutorialModal NOT rendering for step "${step.id}"`, {
+        isVisible,
+        hasTarget: !!targetRef.current,
+        reason: !isVisible ? 'not visible' : 'no target ref'
+      })
+    }
+  }, [isVisible, step.id, position])
+
+  if (!isVisible || !targetRef.current) {
+    return null
+  }
 
   const handleNext = () => {
     if (step.id === 'share') {
@@ -136,13 +210,30 @@ export default function TutorialModal({ step }: TutorialModalProps) {
   const stepIndex = ['create-list', 'title', 'description', 'price', 'public', 'source-type', 'music-url', 'manual-item', 'save', 'share'].indexOf(step.id) + 1
   const totalSteps = 10
 
+  // Ensure position values are valid numbers
+  const validPosition = {
+    ...position,
+    // Ensure all position values are numbers, not NaN or undefined
+    top: position.top !== undefined && !isNaN(position.top) ? position.top : undefined,
+    left: position.left !== undefined && !isNaN(position.left) ? position.left : undefined,
+    bottom: position.bottom !== undefined && !isNaN(position.bottom) ? position.bottom : undefined,
+    right: position.right !== undefined && !isNaN(position.right) ? position.right : undefined,
+  }
+
+  // Log final render with position
+  console.log(`🎨 Rendering TutorialModal for step "${step.id}"`, {
+    validPosition,
+    originalPosition: position,
+    hasAllValues: Object.values(validPosition).some(v => v !== undefined)
+  })
+
   return (
     <>
       {/* Modal positioned near target - non-blocking, no backdrop */}
       <div
-        className="fixed z-50 w-80 rounded-lg bg-white p-6 shadow-xl transition-all pointer-events-auto"
+        className="fixed z-[9999] w-80 rounded-lg bg-white p-6 shadow-xl transition-all pointer-events-auto border-2 border-blue-500"
         style={{
-          ...position,
+          ...validPosition,
           maxWidth: 'calc(100vw - 2rem)',
           transform:
             step.position === 'top' || step.position === 'bottom'
@@ -150,9 +241,14 @@ export default function TutorialModal({ step }: TutorialModalProps) {
               : step.position === 'left' || step.position === 'right'
               ? 'translateY(-50%)'
               : undefined,
+          // Ensure visibility
+          visibility: 'visible',
+          opacity: 1,
+          display: 'block',
         }}
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
+        data-tutorial-modal={step.id}
       >
         <div className="mb-4 flex items-center justify-between">
           <span className="text-xs font-medium text-gray-500">
