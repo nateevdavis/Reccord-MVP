@@ -266,7 +266,7 @@ export async function POST(request: NextRequest) {
         sourceType: validated.sourceType,
         slug,
         items:
-          validated.sourceType === 'MANUAL' && validated.items
+          validated.sourceType === 'MANUAL' && validated.items && validated.items.length > 0
             ? {
                 create: validated.items
                   .filter((item) => item.name && item.name.trim() !== '')
