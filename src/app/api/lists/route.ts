@@ -306,13 +306,19 @@ export async function POST(request: NextRequest) {
       // Fetch tracks from selected sources
       let spotifyTracks: any[] = []
       let appleMusicTracks: any[] = []
+      let spotifyError: string | null = null
+      let appleMusicError: string | null = null
 
       if (connectedSources.includes('SPOTIFY')) {
         try {
           const accessToken = await getValidAccessToken(userId)
           spotifyTracks = await fetchListeningHistory(accessToken, validated.timeWindow)
+          console.log(`Fetched ${spotifyTracks.length} Spotify tracks for time window ${validated.timeWindow}`)
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           console.error('Error fetching Spotify listening history:', error)
+          console.error('Error details:', errorMessage)
+          spotifyError = errorMessage
           // Continue with other sources even if one fails
         }
       }
@@ -322,8 +328,12 @@ export async function POST(request: NextRequest) {
           const developerToken = await getDeveloperToken()
           const userToken = await getUserToken(userId)
           appleMusicTracks = await fetchAppleListeningHistory(developerToken, userToken, validated.timeWindow)
+          console.log(`Fetched ${appleMusicTracks.length} Apple Music tracks for time window ${validated.timeWindow}`)
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           console.error('Error fetching Apple Music listening history:', error)
+          console.error('Error details:', errorMessage)
+          appleMusicError = errorMessage
           // Continue with other sources even if one fails
         }
       }
@@ -332,8 +342,29 @@ export async function POST(request: NextRequest) {
       const topTracks = processTopSongs(spotifyTracks, appleMusicTracks)
 
       if (topTracks.length === 0) {
+        // Build a more helpful error message
+        const errorMessages: string[] = []
+        if (spotifyError) {
+          errorMessages.push(`Spotify: ${spotifyError}`)
+        }
+        if (appleMusicError) {
+          errorMessages.push(`Apple Music: ${appleMusicError}`)
+        }
+        
+        const errorDetails = errorMessages.length > 0 
+          ? ` Errors: ${errorMessages.join('; ')}.` 
+          : ''
+        
         return NextResponse.json(
-          { error: 'No listening history found for the selected time window. Try a different time range or ensure you have played music recently.' },
+          { 
+            error: `No listening history found for the selected time window. Try a different time range or ensure you have played music recently.${errorDetails}`,
+            details: {
+              spotifyTracksCount: spotifyTracks.length,
+              appleMusicTracksCount: appleMusicTracks.length,
+              spotifyError,
+              appleMusicError,
+            }
+          },
           { status: 400 }
         )
       }

@@ -164,10 +164,18 @@ export async function fetchTopTracks(
 
   try {
     const timeRange = mapTimeWindowToSpotifyRange(timeWindow)
+    console.log(`Calling Spotify API getMyTopTracks with time_range: ${timeRange}, limit: ${limit}`)
     const data = await spotifyApi.getMyTopTracks({
       time_range: timeRange,
       limit: Math.min(limit, 50), // Spotify API max is 50
     })
+
+    console.log(`Spotify API returned ${data.body.items.length} top tracks`)
+    
+    if (!data.body.items || data.body.items.length === 0) {
+      console.warn('Spotify API returned empty items array')
+      return []
+    }
 
     return data.body.items.map((track) => ({
       name: track.name,
@@ -178,9 +186,17 @@ export async function fetchTopTracks(
       playCount: 1, // Top tracks API doesn't provide play count, use ranking as proxy
       lastPlayedAt: null, // Top tracks API doesn't provide last played date
     }))
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching top tracks:', error)
-    throw new Error('Failed to fetch top tracks')
+    // Check for specific Spotify API errors
+    if (error?.body?.error) {
+      const spotifyError = error.body.error
+      if (spotifyError.status === 403 || spotifyError.message?.includes('scope')) {
+        throw new Error('Missing required Spotify permissions. Please reconnect Spotify to grant access to your listening history.')
+      }
+      throw new Error(`Spotify API error: ${spotifyError.message || 'Unknown error'}`)
+    }
+    throw new Error(`Failed to fetch top tracks: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -195,9 +211,17 @@ export async function fetchRecentlyPlayed(
   const spotifyApi = getSpotifyApi(accessToken)
 
   try {
+    console.log(`Calling Spotify API getMyRecentlyPlayedTracks with limit: ${limit}`)
     const data = await spotifyApi.getMyRecentlyPlayedTracks({
       limit: Math.min(limit, 50), // Spotify API max is 50
     })
+
+    console.log(`Spotify API returned ${data.body.items.length} recently played items`)
+
+    if (!data.body.items || data.body.items.length === 0) {
+      console.warn('Spotify API returned empty items array for recently played')
+      return []
+    }
 
     // Count plays per track
     const trackMap = new Map<string, SpotifyTrack & { playCount: number; lastPlayedAt: Date }>()
@@ -230,10 +254,20 @@ export async function fetchRecentlyPlayed(
       }
     })
 
-    return Array.from(trackMap.values())
-  } catch (error) {
+    const tracks = Array.from(trackMap.values())
+    console.log(`Processed ${tracks.length} unique tracks from recently played`)
+    return tracks
+  } catch (error: any) {
     console.error('Error fetching recently played tracks:', error)
-    throw new Error('Failed to fetch recently played tracks')
+    // Check for specific Spotify API errors
+    if (error?.body?.error) {
+      const spotifyError = error.body.error
+      if (spotifyError.status === 403 || spotifyError.message?.includes('scope')) {
+        throw new Error('Missing required Spotify permissions. Please reconnect Spotify to grant access to your listening history.')
+      }
+      throw new Error(`Spotify API error: ${spotifyError.message || 'Unknown error'}`)
+    }
+    throw new Error(`Failed to fetch recently played tracks: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -246,29 +280,52 @@ export async function fetchListeningHistory(
   timeWindow: string
 ): Promise<SpotifyTrack[]> {
   try {
-    // For short time windows, use recently played tracks
+    // For short time windows, try recently played tracks first
     if (timeWindow === 'THIS_WEEK' || timeWindow === 'THIS_MONTH') {
-      // Fetch more recently played tracks to get better coverage
-      const recentlyPlayed = await fetchRecentlyPlayed(accessToken, 50)
-      
-      // Filter by time window
-      const now = Date.now()
-      const windowMs = timeWindow === 'THIS_WEEK' 
-        ? 7 * 24 * 60 * 60 * 1000  // 7 days
-        : 30 * 24 * 60 * 60 * 1000 // 30 days
+      try {
+        // Fetch more recently played tracks to get better coverage
+        const recentlyPlayed = await fetchRecentlyPlayed(accessToken, 50)
+        console.log(`Fetched ${recentlyPlayed.length} recently played tracks`)
+        
+        // Filter by time window
+        const now = Date.now()
+        const windowMs = timeWindow === 'THIS_WEEK' 
+          ? 7 * 24 * 60 * 60 * 1000  // 7 days
+          : 30 * 24 * 60 * 60 * 1000 // 30 days
 
-      return recentlyPlayed.filter((track) => {
-        if (!track.lastPlayedAt) return false
-        return (now - track.lastPlayedAt.getTime()) <= windowMs
-      })
+        const filtered = recentlyPlayed.filter((track) => {
+          if (!track.lastPlayedAt) return false
+          return (now - track.lastPlayedAt.getTime()) <= windowMs
+        })
+        
+        console.log(`Filtered to ${filtered.length} tracks within time window`)
+        
+        // If we have tracks, return them
+        if (filtered.length > 0) {
+          return filtered
+        }
+        
+        // If no tracks in the window, fall back to top tracks API
+        console.log('No tracks in time window, falling back to top tracks API')
+      } catch (error) {
+        console.error('Error fetching recently played, falling back to top tracks:', error)
+        // Fall through to top tracks API
+      }
     }
 
-    // For longer time windows, use top tracks API
+    // For longer time windows, or as fallback for short windows, use top tracks API
     // This is more accurate for medium/long term trends
-    return await fetchTopTracks(accessToken, timeWindow, 50)
+    console.log(`Fetching top tracks for time window: ${timeWindow}`)
+    const topTracks = await fetchTopTracks(accessToken, timeWindow, 50)
+    console.log(`Fetched ${topTracks.length} top tracks`)
+    return topTracks
   } catch (error) {
     console.error('Error fetching listening history:', error)
-    throw new Error('Failed to fetch listening history')
+    if (error instanceof Error) {
+      console.error('Error message:', error.message)
+      console.error('Error stack:', error.stack)
+    }
+    throw new Error(`Failed to fetch listening history: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
