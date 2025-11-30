@@ -333,14 +333,19 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       }
     }
 
-    const payload = {
+    const payload: any = {
       name: name.trim(),
       description: description.trim(),
       priceCents,
       isPublic,
       sourceType,
-      items: validItems,
       ...((sourceType === 'SPOTIFY' || sourceType === 'APPLE_MUSIC') && { playlistUrl: playlistUrl.trim() }),
+    }
+    
+    // Only include items if sourceType is MANUAL and we have valid items
+    // Don't send empty array - either send items or omit the field
+    if (sourceType === 'MANUAL' && validItems.length > 0) {
+      payload.items = validItems
     }
 
     try {
