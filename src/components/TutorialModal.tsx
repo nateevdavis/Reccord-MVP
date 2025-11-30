@@ -55,109 +55,20 @@ export default function TutorialModal({ step }: TutorialModalProps) {
       const target = targetRef.current
       const rect = target.getBoundingClientRect()
       
-      // Check if there's ANY focused input/textarea that might be covered
-      const activeElement = document.activeElement
-      const isAnyInputFocused = activeElement && (
-        activeElement.tagName === 'INPUT' || 
-        activeElement.tagName === 'TEXTAREA'
-      )
-      
-      let focusedInputRect: DOMRect | null = null
-      if (isAnyInputFocused && activeElement instanceof HTMLElement) {
-        focusedInputRect = activeElement.getBoundingClientRect()
-      }
-      
+      // Force all modals to appear below (under) their target elements
       // For fixed positioning, values are relative to viewport (not document)
-      // So we use rect values directly without scrollY/scrollX
+      const spacing = 12
       const modalWidth = 320
       const modalHeight = 200
-      const spacing = 12
-      
-      // Calculate base position
-      const positions: Record<string, { top?: number; left?: number; bottom?: number; right?: number }> = {
-        top: {
-          bottom: window.innerHeight - rect.top + spacing,
-          left: rect.left + rect.width / 2,
-        },
-        bottom: {
-          top: rect.bottom + spacing,
-          left: rect.left + rect.width / 2,
-        },
-        left: {
-          top: rect.top + rect.height / 2,
-          right: window.innerWidth - rect.left + spacing,
-        },
-        right: {
-          top: rect.top + rect.height / 2,
-          left: rect.right + spacing,
-        },
-      }
-      
-      let calculatedPosition = positions[step.position] || positions.bottom
-      
-      // Check if modal would cover ANY focused input field
-      if (focusedInputRect) {
-        // Calculate modal bounds based on position
-        let modalTop = 0
-        let modalBottom = 0
-        let modalLeft = 0
-        let modalRight = 0
-        
-        if (calculatedPosition.top !== undefined && calculatedPosition.left !== undefined) {
-          modalTop = calculatedPosition.top
-          modalBottom = modalTop + modalHeight
-          modalLeft = calculatedPosition.left - modalWidth / 2
-          modalRight = calculatedPosition.left + modalWidth / 2
-        } else if (calculatedPosition.bottom !== undefined && calculatedPosition.left !== undefined) {
-          modalBottom = window.innerHeight - calculatedPosition.bottom
-          modalTop = modalBottom - modalHeight
-          modalLeft = calculatedPosition.left - modalWidth / 2
-          modalRight = calculatedPosition.left + modalWidth / 2
-        }
-        
-        // Check if modal overlaps with focused input
-        const wouldCover = (
-          modalTop <= focusedInputRect.bottom &&
-          modalBottom >= focusedInputRect.top &&
-          modalLeft <= focusedInputRect.right &&
-          modalRight >= focusedInputRect.left
-        )
-        
-        if (wouldCover) {
-          // Try positioning above instead
-          const spaceAbove = rect.top
-          if (spaceAbove >= modalHeight + spacing) {
-            calculatedPosition = {
-              bottom: window.innerHeight - rect.top + spacing,
-              left: rect.left + rect.width / 2,
-            }
-          } else {
-            // Not enough space above, try positioning to the side
-            const spaceRight = window.innerWidth - rect.right
-            const spaceLeft = rect.left
-            if (spaceRight >= modalWidth + spacing) {
-              calculatedPosition = {
-                top: rect.top + rect.height / 2,
-                left: rect.right + spacing,
-              }
-            } else if (spaceLeft >= modalWidth + spacing) {
-              calculatedPosition = {
-                top: rect.top + rect.height / 2,
-                right: window.innerWidth - rect.left + spacing,
-              }
-            } else {
-              // Not enough space anywhere, hide modal while input is focused
-              setIsInputFocused(true)
-              return
-            }
-          }
-        }
-      }
-      
-      // Ensure modal stays within viewport
       const minMargin = 16
       
-      // Adjust horizontal position if modal would go off-screen
+      // Always position below the target element
+      let calculatedPosition: { top?: number; left?: number; bottom?: number; right?: number } = {
+        top: rect.bottom + spacing,
+        left: rect.left + rect.width / 2,
+      }
+      
+      // Ensure modal stays within viewport horizontally
       if (calculatedPosition.left !== undefined) {
         const halfWidth = modalWidth / 2
         if (calculatedPosition.left - halfWidth < minMargin) {
@@ -167,25 +78,30 @@ export default function TutorialModal({ step }: TutorialModalProps) {
         }
       }
       
-      // Adjust vertical position if modal would go off-screen
+      // Ensure modal stays within viewport vertically
+      // If modal would go off bottom of screen, position above instead
       if (calculatedPosition.top !== undefined) {
-        if (calculatedPosition.top < minMargin) {
+        if (calculatedPosition.top + modalHeight > window.innerHeight - minMargin) {
+          // Not enough space below, position above instead
+          calculatedPosition = {
+            bottom: window.innerHeight - rect.top + spacing,
+            left: rect.left + rect.width / 2,
+          }
+          // Re-adjust horizontal position
+          if (calculatedPosition.left !== undefined) {
+            const halfWidth = modalWidth / 2
+            if (calculatedPosition.left - halfWidth < minMargin) {
+              calculatedPosition.left = minMargin + halfWidth
+            } else if (calculatedPosition.left + halfWidth > window.innerWidth - minMargin) {
+              calculatedPosition.left = window.innerWidth - minMargin - halfWidth
+            }
+          }
+        } else if (calculatedPosition.top < minMargin) {
           calculatedPosition.top = minMargin
-        } else if (calculatedPosition.top + modalHeight > window.innerHeight - minMargin) {
-          calculatedPosition.top = window.innerHeight - modalHeight - minMargin
-        }
-      }
-      
-      if (calculatedPosition.bottom !== undefined) {
-        const bottomValue = calculatedPosition.bottom
-        if (bottomValue < minMargin) {
-          calculatedPosition.bottom = minMargin
-        } else if (bottomValue - modalHeight < minMargin) {
-          calculatedPosition.bottom = modalHeight + minMargin
         }
       }
 
-      setIsInputFocused(false) // Reset - modal won't cover input
+      setIsInputFocused(false)
       setPosition(calculatedPosition)
     }
 
