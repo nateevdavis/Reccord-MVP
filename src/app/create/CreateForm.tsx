@@ -650,7 +650,21 @@ export default function CreateForm({ listId }: { listId: string | null }) {
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Connect Spotify
               </label>
-              <SpotifyConnectButton />
+              <SpotifyConnectButton 
+                onBeforeConnect={() => {
+                  // Save form state before redirecting
+                  const formState = {
+                    name,
+                    description,
+                    price,
+                    isPublic,
+                    sourceType: 'SPOTIFY',
+                    items,
+                    playlistUrl,
+                  }
+                  localStorage.setItem(FORM_STATE_KEY, JSON.stringify(formState))
+                }}
+              />
             </div>
             {spotifyConnected && (
               <div>
@@ -690,7 +704,21 @@ export default function CreateForm({ listId }: { listId: string | null }) {
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Connect Apple Music
               </label>
-              <AppleMusicConnectButton />
+              <AppleMusicConnectButton 
+                onBeforeConnect={() => {
+                  // Save form state before connecting
+                  const formState = {
+                    name,
+                    description,
+                    price,
+                    isPublic,
+                    sourceType: 'APPLE_MUSIC',
+                    items,
+                    playlistUrl,
+                  }
+                  localStorage.setItem(FORM_STATE_KEY, JSON.stringify(formState))
+                }}
+              />
             </div>
             {appleMusicConnected && (
               <div>
