@@ -20,6 +20,7 @@ export default function TutorialModal({ step }: TutorialModalProps) {
     right?: number
   }>({})
   const [isVisible, setIsVisible] = useState(false)
+  const [isInputFocused, setIsInputFocused] = useState(false)
   const targetRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
@@ -54,28 +55,70 @@ export default function TutorialModal({ step }: TutorialModalProps) {
       const target = targetRef.current
       const rect = target.getBoundingClientRect()
       
+      // Check if there's a focused input/textarea that might be covered
+      const activeElement = document.activeElement
+      const isInputActive = activeElement && (
+        activeElement.tagName === 'INPUT' || 
+        activeElement.tagName === 'TEXTAREA'
+      )
+      
+      let focusedInputRect: DOMRect | null = null
+      if (isInputActive && activeElement instanceof HTMLElement) {
+        focusedInputRect = activeElement.getBoundingClientRect()
+      }
+      
       // For fixed positioning, values are relative to viewport (not document)
       // So we use rect values directly without scrollY/scrollX
-      const positions: Record<string, { top?: number; left?: number; bottom?: number; right?: number }> = {
-        top: {
-          bottom: window.innerHeight - rect.top + 12,
-          left: rect.left + rect.width / 2,
-        },
-        bottom: {
-          top: rect.bottom + 12,
-          left: rect.left + rect.width / 2,
-        },
-        left: {
-          top: rect.top + rect.height / 2,
-          right: window.innerWidth - rect.left + 12,
-        },
-        right: {
-          top: rect.top + rect.height / 2,
-          left: rect.right + 12,
-        },
+      let calculatedPosition: { top?: number; left?: number; bottom?: number; right?: number } = {}
+      
+      // If there's a focused input and modal would cover it, adjust position
+      if (focusedInputRect && step.position === 'bottom') {
+        // Check if bottom-positioned modal would cover the focused input
+        const modalHeight = 200
+        const modalTop = rect.bottom + 12
+        const modalBottom = modalTop + modalHeight
+        
+        const wouldCover = (
+          modalTop <= focusedInputRect.bottom &&
+          modalBottom >= focusedInputRect.top &&
+          Math.abs((rect.left + rect.width / 2) - (focusedInputRect.left + focusedInputRect.width / 2)) < 200
+        )
+        
+        if (wouldCover) {
+          // Position above instead to avoid covering
+          calculatedPosition = {
+            bottom: window.innerHeight - rect.top + 12,
+            left: rect.left + rect.width / 2,
+          }
+        } else {
+          // Normal bottom positioning
+          calculatedPosition = {
+            top: rect.bottom + 12,
+            left: rect.left + rect.width / 2,
+          }
+        }
+      } else {
+        // Use normal positioning logic
+        const positions: Record<string, { top?: number; left?: number; bottom?: number; right?: number }> = {
+          top: {
+            bottom: window.innerHeight - rect.top + 12,
+            left: rect.left + rect.width / 2,
+          },
+          bottom: {
+            top: rect.bottom + 12,
+            left: rect.left + rect.width / 2,
+          },
+          left: {
+            top: rect.top + rect.height / 2,
+            right: window.innerWidth - rect.left + 12,
+          },
+          right: {
+            top: rect.top + rect.height / 2,
+            left: rect.right + 12,
+          },
+        }
+        calculatedPosition = positions[step.position] || positions.bottom
       }
-
-      const calculatedPosition = positions[step.position] || positions.bottom
       
       // Ensure modal stays within viewport
       const modalWidth = 320
@@ -189,6 +232,8 @@ export default function TutorialModal({ step }: TutorialModalProps) {
       }
       window.removeEventListener('scroll', handleScroll, true)
       window.removeEventListener('resize', handleResize)
+      document.removeEventListener('focusin', handleFocus)
+      document.removeEventListener('focusout', handleBlur)
       hasSetPosition = false // Reset flag on cleanup
     }
   }, [isActive, currentStep, step.id, step.targetSelector, step.position])
