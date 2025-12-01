@@ -533,9 +533,9 @@ export async function PUT(
       },
     })
 
-    // Record price change in history and send price change emails if needed (don't await - send in background)
+    // Record price change in history and create price change notifications if needed (don't await - create in background)
     recordPriceChange().catch(console.error)
-    sendPriceChangeEmails(updatedList.slug, updatedList.name).catch(console.error)
+    createPriceChangeNotifications(updatedList.slug, updatedList.name).catch(console.error)
 
     return NextResponse.json({ 
       list: updatedList,
