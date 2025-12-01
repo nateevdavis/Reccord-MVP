@@ -51,6 +51,7 @@ model List {
   items            ListItem[]
   subscriptions    Subscription[]
   notifications    Notification[]
+  priceChangeHistory PriceChangeHistory[]
 
   @@map("lists")
 }
@@ -244,4 +245,18 @@ enum NotificationType {
   // Add more types as needed
 
   @@map("notification_type")
+}
+
+model PriceChangeHistory {
+  id            String   @id @default(cuid())
+  listId        String
+  list          List     @relation(fields: [listId], references: [id], onDelete: Cascade)
+  oldPriceCents Int
+  newPriceCents Int
+  changedBy     String   // ownerId who made the change
+  changedAt     DateTime @default(now())
+
+  @@index([listId])
+  @@index([changedAt])
+  @@map("price_change_history")
 }

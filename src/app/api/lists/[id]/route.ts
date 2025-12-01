@@ -108,6 +108,22 @@ export async function PUT(
     const priceChanged = existingList.priceCents !== validated.priceCents
     const oldPriceCents = existingList.priceCents
 
+    // Validate price increase if price is changing
+    if (priceChanged && validated.priceCents > oldPriceCents) {
+      const priceIncrease = validated.priceCents - oldPriceCents
+      const percentageIncrease = (priceIncrease / oldPriceCents) * 100
+
+      // Block price increases over 100%
+      if (percentageIncrease > 100) {
+        return NextResponse.json(
+          {
+            error: "Price increases over 100% are restricted as our policy to protect subscribers. If you need to increase your list price by more than 100%, please contact us at help@reccord.co with your proposal and reasoning. We're happy to accommodate increases of this size after a manual review."
+          },
+          { status: 400 }
+        )
+      }
+    }
+
     // Validate Stripe Connect account if making list public (or if it's already public and staying public)
     if (validated.isPublic) {
       const stripeConnectAccount = await prisma.stripeConnectAccount.findUnique({
@@ -150,6 +166,27 @@ export async function PUT(
     const isMetadataOnlyUpdate = isSyncedList && 
                                   validated.sourceType === existingList.sourceType &&
                                   !validated.playlistUrl // No playlist URL means we're not changing the source
+
+    // Helper function to record price change in history
+    const recordPriceChange = async () => {
+      if (!priceChanged) {
+        return
+      }
+
+      try {
+        await prisma.priceChangeHistory.create({
+          data: {
+            listId: id,
+            oldPriceCents,
+            newPriceCents: validated.priceCents,
+            changedBy: userId,
+          },
+        })
+      } catch (error) {
+        console.error('Error recording price change:', error)
+        // Don't fail the request if history recording fails
+      }
+    }
 
     // Helper function to create price change notifications for subscribers
     const createPriceChangeNotifications = async (listSlug: string, listName: string) => {
@@ -220,7 +257,8 @@ export async function PUT(
         },
       })
 
-      // Create price change notifications if needed (don't await - create in background)
+      // Record price change in history and create notifications if needed (don't await - create in background)
+      recordPriceChange().catch(console.error)
       createPriceChangeNotifications(updatedList.slug, updatedList.name).catch(console.error)
 
       return NextResponse.json({ 
@@ -495,7 +533,8 @@ export async function PUT(
       },
     })
 
-    // Send price change emails if needed (don't await - send in background)
+    // Record price change in history and send price change emails if needed (don't await - send in background)
+    recordPriceChange().catch(console.error)
     sendPriceChangeEmails(updatedList.slug, updatedList.name).catch(console.error)
 
     return NextResponse.json({ 
