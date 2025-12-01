@@ -4,6 +4,12 @@
   "installCommand": "npm install",
   "env": {
     "PRISMA_GENERATE_DATAPROXY": "false"
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/sync-apple-music",
+      "schedule": "0 * * * *"
+    }
+  ]
 }
 
