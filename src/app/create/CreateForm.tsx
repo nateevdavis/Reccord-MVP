@@ -21,6 +21,7 @@ type ListItem = {
 
 type ListSourceType = 'MANUAL' | 'SPOTIFY' | 'APPLE_MUSIC' | 'TOP_SONGS'
 type TimeWindow = 'THIS_WEEK' | 'THIS_MONTH' | 'PAST_6_MONTHS' | 'PAST_YEAR' | 'ALL_TIME'
+type SyncType = 'PLAYLIST' | 'TOP_SONGS' | null
 
 export default function CreateForm({ listId }: { listId: string | null }) {
   const router = useRouter()
@@ -32,6 +33,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
   const [price, setPrice] = useState('')
   const [isPublic, setIsPublic] = useState(false)
   const [sourceType, setSourceType] = useState<ListSourceType>('MANUAL')
+  const [syncType, setSyncType] = useState<SyncType>(null) // PLAYLIST or TOP_SONGS for Spotify/Apple Music
   const [items, setItems] = useState<ListItem[]>([{ name: '', description: '', url: '' }])
   const [playlistUrl, setPlaylistUrl] = useState('')
   const [spotifyConnected, setSpotifyConnected] = useState(false)
@@ -43,7 +45,6 @@ export default function CreateForm({ listId }: { listId: string | null }) {
   const [hasExistingLists, setHasExistingLists] = useState(false)
   // Top Songs specific state
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('THIS_MONTH')
-  const [selectedSources, setSelectedSources] = useState<string[]>([])
 
   // Form state persistence key
   const FORM_STATE_KEY = 'reccord_create_form_state'
@@ -68,8 +69,10 @@ export default function CreateForm({ listId }: { listId: string | null }) {
           setPrice(parsed.price || '')
           setIsPublic(parsed.isPublic || false)
           setSourceType(parsed.sourceType || 'MANUAL')
+          setSyncType(parsed.syncType || null)
           setItems(parsed.items || [{ name: '', description: '', url: '' }])
           setPlaylistUrl(parsed.playlistUrl || '')
+          setTimeWindow(parsed.timeWindow || 'THIS_MONTH')
           // Clear saved state after restoring
           localStorage.removeItem(FORM_STATE_KEY)
         }
@@ -183,10 +186,19 @@ export default function CreateForm({ listId }: { listId: string | null }) {
             if (data.list.spotifyConfig) {
               setPlaylistUrl(data.list.spotifyConfig.playlistUrl)
               setSpotifyConnected(true)
+              setSourceType('SPOTIFY')
+              setSyncType('PLAYLIST')
             }
             if (data.list.appleMusicConfig) {
               setPlaylistUrl(data.list.appleMusicConfig.playlistUrl)
               setAppleMusicConnected(true)
+              setSourceType('APPLE_MUSIC')
+              setSyncType('PLAYLIST')
+            }
+            if (data.list.topSongsConfig) {
+              setSourceType('TOP_SONGS')
+              setSyncType('TOP_SONGS')
+              setTimeWindow(data.list.topSongsConfig.timeWindow)
             }
             if (data.list.items && data.list.items.length > 0) {
               setItems(
@@ -355,8 +367,26 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       ? items.filter(item => item.name.trim() !== '')
       : []
 
+    // Determine final sourceType based on syncType
+    let finalSourceType = sourceType
+    let finalSources: string[] = []
+    
+    if (sourceType === 'SPOTIFY' || sourceType === 'APPLE_MUSIC') {
+      if (syncType === 'TOP_SONGS') {
+        finalSourceType = 'TOP_SONGS'
+        finalSources = [sourceType] // Use the selected service
+      } else if (syncType === 'PLAYLIST') {
+        // Keep as SPOTIFY or APPLE_MUSIC
+        finalSourceType = sourceType
+      } else {
+        alert('Please select a sync type (Playlist or Top Songs)')
+        setLoading(false)
+        return
+      }
+    }
+
     // Validate Spotify playlist URL if needed
-    if (sourceType === 'SPOTIFY') {
+    if (finalSourceType === 'SPOTIFY') {
       if (!spotifyConnected) {
         alert('Please connect Spotify first')
         setLoading(false)
@@ -370,7 +400,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
     }
 
     // Validate Apple Music playlist URL if needed
-    if (sourceType === 'APPLE_MUSIC') {
+    if (finalSourceType === 'APPLE_MUSIC') {
       if (!appleMusicConnected) {
         alert('Please connect Apple Music first')
         setLoading(false)
@@ -384,19 +414,24 @@ export default function CreateForm({ listId }: { listId: string | null }) {
     }
 
     // Validate Top Songs configuration
-    if (sourceType === 'TOP_SONGS') {
-      if (selectedSources.length === 0) {
+    if (finalSourceType === 'TOP_SONGS') {
+      if (finalSources.length === 0) {
         alert('Please select at least one music source (Spotify or Apple Music)')
         setLoading(false)
         return
       }
-      if (!spotifyConnected && selectedSources.includes('SPOTIFY')) {
+      if (!spotifyConnected && finalSources.includes('SPOTIFY')) {
         alert('Please connect Spotify first')
         setLoading(false)
         return
       }
-      if (!appleMusicConnected && selectedSources.includes('APPLE_MUSIC')) {
+      if (!appleMusicConnected && finalSources.includes('APPLE_MUSIC')) {
         alert('Please connect Apple Music first')
+        setLoading(false)
+        return
+      }
+      if (!timeWindow) {
+        alert('Please select a time window')
         setLoading(false)
         return
       }
@@ -407,11 +442,11 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       description: description.trim(),
       priceCents,
       isPublic,
-      sourceType,
-      ...((sourceType === 'SPOTIFY' || sourceType === 'APPLE_MUSIC') && { playlistUrl: playlistUrl.trim() }),
-      ...(sourceType === 'TOP_SONGS' && {
+      sourceType: finalSourceType,
+      ...((finalSourceType === 'SPOTIFY' || finalSourceType === 'APPLE_MUSIC') && { playlistUrl: playlistUrl.trim() }),
+      ...(finalSourceType === 'TOP_SONGS' && {
         timeWindow,
-        sources: selectedSources,
+        sources: finalSources,
       }),
     }
     
@@ -571,6 +606,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
               type="button"
               onClick={() => {
                 setSourceType('SPOTIFY')
+                setSyncType(null) // Reset sync type when switching services
                 // Advance tutorial if on source-type step
                 if (isActive && currentStep === 'source-type') {
                   setTimeout(() => {
@@ -591,6 +627,7 @@ export default function CreateForm({ listId }: { listId: string | null }) {
               type="button"
               onClick={() => {
                 setSourceType('APPLE_MUSIC')
+                setSyncType(null) // Reset sync type when switching services
                 // Advance tutorial if on source-type step
                 if (isActive && currentStep === 'source-type') {
                   setTimeout(() => {
@@ -606,31 +643,6 @@ export default function CreateForm({ listId }: { listId: string | null }) {
               }`}
             >
               Apple Music
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSourceType('TOP_SONGS')
-                // Initialize sources based on what's connected
-                const sources: string[] = []
-                if (spotifyConnected) sources.push('SPOTIFY')
-                if (appleMusicConnected) sources.push('APPLE_MUSIC')
-                setSelectedSources(sources)
-                // Advance tutorial if on source-type step
-                if (isActive && currentStep === 'source-type') {
-                  setTimeout(() => {
-                    setContext({ sourceType: 'TOP_SONGS', spotifyConnected, appleMusicConnected })
-                    nextStep({ sourceType: 'TOP_SONGS', spotifyConnected, appleMusicConnected })
-                  }, 300)
-                }
-              }}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                sourceType === 'TOP_SONGS'
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Top Songs
             </button>
           </div>
         </div>
@@ -722,201 +734,306 @@ export default function CreateForm({ listId }: { listId: string | null }) {
 
         {sourceType === 'SPOTIFY' && (
           <div className="space-y-4">
-            {isActive && currentStep === 'connect-spotify' && getStepById('connect-spotify') && (
-              <TutorialModal step={getStepById('connect-spotify')!} />
-            )}
-            <div data-tutorial="connect-spotify">
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Connect Spotify
-              </label>
-              <SpotifyConnectButton 
-                onBeforeConnect={() => {
-                  // Save form state before redirecting
-                  const formState = {
-                    name,
-                    description,
-                    price,
-                    isPublic,
-                    sourceType: 'SPOTIFY',
-                    items,
-                    playlistUrl,
-                  }
-                  localStorage.setItem(FORM_STATE_KEY, JSON.stringify(formState))
-                }}
-              />
-            </div>
-            {spotifyConnected && (
+            {!syncType && (
               <div>
-                {isActive && currentStep === 'music-url' && getStepById('music-url') && (
-                  <TutorialModal step={getStepById('music-url')!} />
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  What would you like to sync?
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSyncType('PLAYLIST')}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                      syncType === 'PLAYLIST'
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Sync a playlist
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSyncType('TOP_SONGS')}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                      syncType === 'TOP_SONGS'
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Sync your top songs
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {syncType === 'PLAYLIST' && (
+              <>
+                {isActive && currentStep === 'connect-spotify' && getStepById('connect-spotify') && (
+                  <TutorialModal step={getStepById('connect-spotify')!} />
                 )}
-                <div data-tutorial="music-url">
-                  <Input
-                    label="Spotify Playlist URL"
-                    type="url"
-                    value={playlistUrl}
-                    onChange={(e) => {
-                      setPlaylistUrl(e.target.value)
-                      // Auto-advance when URL is entered
-                      if (isActive && currentStep === 'music-url' && e.target.value.trim()) {
-                        setTimeout(() => nextStep(), 300)
+                <div data-tutorial="connect-spotify">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Connect Spotify
+                  </label>
+                  <SpotifyConnectButton 
+                    onBeforeConnect={() => {
+                      // Save form state before redirecting
+                      const formState = {
+                        name,
+                        description,
+                        price,
+                        isPublic,
+                        sourceType: 'SPOTIFY',
+                        syncType: 'PLAYLIST',
+                        items,
+                        playlistUrl,
                       }
+                      localStorage.setItem(FORM_STATE_KEY, JSON.stringify(formState))
                     }}
-                    placeholder="https://open.spotify.com/playlist/..."
-                    required
                   />
                 </div>
-                <p className="mt-1 text-sm text-gray-600">
-                  Enter the URL of your Spotify playlist. We'll sync the top 10 songs.
-                </p>
-              </div>
+                {spotifyConnected && (
+                  <div>
+                    {isActive && currentStep === 'music-url' && getStepById('music-url') && (
+                      <TutorialModal step={getStepById('music-url')!} />
+                    )}
+                    <div data-tutorial="music-url">
+                      <Input
+                        label="Spotify Playlist URL"
+                        type="url"
+                        value={playlistUrl}
+                        onChange={(e) => {
+                          setPlaylistUrl(e.target.value)
+                          // Auto-advance when URL is entered
+                          if (isActive && currentStep === 'music-url' && e.target.value.trim()) {
+                            setTimeout(() => nextStep(), 300)
+                          }
+                        }}
+                        placeholder="https://open.spotify.com/playlist/..."
+                        required
+                      />
+                    </div>
+                    <p className="mt-1 text-sm text-gray-600">
+                      Enter the URL of your Spotify playlist. We'll sync the top 10 songs.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {syncType === 'TOP_SONGS' && (
+              <>
+                {isActive && currentStep === 'connect-spotify' && getStepById('connect-spotify') && (
+                  <TutorialModal step={getStepById('connect-spotify')!} />
+                )}
+                <div data-tutorial="connect-spotify">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Connect Spotify
+                  </label>
+                  <SpotifyConnectButton 
+                    onBeforeConnect={() => {
+                      // Save form state before redirecting
+                      const formState = {
+                        name,
+                        description,
+                        price,
+                        isPublic,
+                        sourceType: 'SPOTIFY',
+                        syncType: 'TOP_SONGS',
+                        items,
+                        timeWindow,
+                      }
+                      localStorage.setItem(FORM_STATE_KEY, JSON.stringify(formState))
+                    }}
+                  />
+                </div>
+                {spotifyConnected && (
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Time Window
+                    </label>
+                    <div className="space-y-2">
+                      {(['THIS_WEEK', 'THIS_MONTH', 'PAST_6_MONTHS', 'PAST_YEAR', 'ALL_TIME'] as TimeWindow[]).map((window) => (
+                        <label key={window} className="flex items-center">
+                          <input
+                            type="radio"
+                            name="spotifyTimeWindow"
+                            value={window}
+                            checked={timeWindow === window}
+                            onChange={(e) => setTimeWindow(e.target.value as TimeWindow)}
+                            className="mr-2"
+                          />
+                          <span className="text-sm text-gray-700">
+                            {window === 'THIS_WEEK' && 'This Week (last 7 days)'}
+                            {window === 'THIS_MONTH' && 'This Month (last 30 days)'}
+                            {window === 'PAST_6_MONTHS' && 'Past 6 Months (last 180 days)'}
+                            {window === 'PAST_YEAR' && 'Past Year (last 365 days)'}
+                            {window === 'ALL_TIME' && 'All Time'}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-sm text-gray-600">
+                      This list will automatically update daily with your top 10 tracks from Spotify based on your listening history.
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
 
         {sourceType === 'APPLE_MUSIC' && (
           <div className="space-y-4">
-            {isActive && currentStep === 'connect-apple-music' && getStepById('connect-apple-music') && (
-              <TutorialModal step={getStepById('connect-apple-music')!} />
-            )}
-            <div data-tutorial="connect-apple-music">
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Connect Apple Music
-              </label>
-              <AppleMusicConnectButton 
-                onBeforeConnect={() => {
-                  // Save form state before connecting
-                  const formState = {
-                    name,
-                    description,
-                    price,
-                    isPublic,
-                    sourceType: 'APPLE_MUSIC',
-                    items,
-                    playlistUrl,
-                  }
-                  localStorage.setItem(FORM_STATE_KEY, JSON.stringify(formState))
-                }}
-              />
-            </div>
-            {appleMusicConnected && (
+            {!syncType && (
               <div>
-                {isActive && currentStep === 'music-url' && getStepById('music-url') && (
-                  <TutorialModal step={getStepById('music-url')!} />
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  What would you like to sync?
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSyncType('PLAYLIST')}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                      syncType === 'PLAYLIST'
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Sync a playlist
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSyncType('TOP_SONGS')}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                      syncType === 'TOP_SONGS'
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Sync your top songs
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {syncType === 'PLAYLIST' && (
+              <>
+                {isActive && currentStep === 'connect-apple-music' && getStepById('connect-apple-music') && (
+                  <TutorialModal step={getStepById('connect-apple-music')!} />
                 )}
-                <div data-tutorial="music-url">
-                  <Input
-                    label="Apple Music Playlist URL"
-                    type="url"
-                    value={playlistUrl}
-                    onChange={(e) => {
-                      setPlaylistUrl(e.target.value)
-                      // Auto-advance when URL is entered
-                      if (isActive && currentStep === 'music-url' && e.target.value.trim()) {
-                        setTimeout(() => nextStep(), 300)
+                <div data-tutorial="connect-apple-music">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Connect Apple Music
+                  </label>
+                  <AppleMusicConnectButton 
+                    onBeforeConnect={() => {
+                      // Save form state before connecting
+                      const formState = {
+                        name,
+                        description,
+                        price,
+                        isPublic,
+                        sourceType: 'APPLE_MUSIC',
+                        syncType: 'PLAYLIST',
+                        items,
+                        playlistUrl,
                       }
+                      localStorage.setItem(FORM_STATE_KEY, JSON.stringify(formState))
                     }}
-                    placeholder="https://music.apple.com/us/playlist/..."
-                    required
                   />
                 </div>
-                <p className="mt-1 text-sm text-gray-600">
-                  Enter the URL of your Apple Music playlist. We'll sync the top 10 songs.
-                </p>
-              </div>
+                {appleMusicConnected && (
+                  <div>
+                    {isActive && currentStep === 'music-url' && getStepById('music-url') && (
+                      <TutorialModal step={getStepById('music-url')!} />
+                    )}
+                    <div data-tutorial="music-url">
+                      <Input
+                        label="Apple Music Playlist URL"
+                        type="url"
+                        value={playlistUrl}
+                        onChange={(e) => {
+                          setPlaylistUrl(e.target.value)
+                          // Auto-advance when URL is entered
+                          if (isActive && currentStep === 'music-url' && e.target.value.trim()) {
+                            setTimeout(() => nextStep(), 300)
+                          }
+                        }}
+                        placeholder="https://music.apple.com/us/playlist/..."
+                        required
+                      />
+                    </div>
+                    <p className="mt-1 text-sm text-gray-600">
+                      Enter the URL of your Apple Music playlist. We'll sync the top 10 songs.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {syncType === 'TOP_SONGS' && (
+              <>
+                {isActive && currentStep === 'connect-apple-music' && getStepById('connect-apple-music') && (
+                  <TutorialModal step={getStepById('connect-apple-music')!} />
+                )}
+                <div data-tutorial="connect-apple-music">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Connect Apple Music
+                  </label>
+                  <AppleMusicConnectButton 
+                    onBeforeConnect={() => {
+                      // Save form state before connecting
+                      const formState = {
+                        name,
+                        description,
+                        price,
+                        isPublic,
+                        sourceType: 'APPLE_MUSIC',
+                        syncType: 'TOP_SONGS',
+                        items,
+                        timeWindow,
+                      }
+                      localStorage.setItem(FORM_STATE_KEY, JSON.stringify(formState))
+                    }}
+                  />
+                </div>
+                {appleMusicConnected && (
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Time Window
+                    </label>
+                    <div className="space-y-2">
+                      {(['THIS_WEEK', 'THIS_MONTH', 'PAST_6_MONTHS', 'PAST_YEAR', 'ALL_TIME'] as TimeWindow[]).map((window) => (
+                        <label key={window} className="flex items-center">
+                          <input
+                            type="radio"
+                            name="appleMusicTimeWindow"
+                            value={window}
+                            checked={timeWindow === window}
+                            onChange={(e) => setTimeWindow(e.target.value as TimeWindow)}
+                            className="mr-2"
+                          />
+                          <span className="text-sm text-gray-700">
+                            {window === 'THIS_WEEK' && 'This Week (last 7 days)'}
+                            {window === 'THIS_MONTH' && 'This Month (last 30 days)'}
+                            {window === 'PAST_6_MONTHS' && 'Past 6 Months (last 180 days)'}
+                            {window === 'PAST_YEAR' && 'Past Year (last 365 days)'}
+                            {window === 'ALL_TIME' && 'All Time'}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-sm text-gray-600">
+                      This list will automatically update daily with your top 10 tracks from Apple Music based on your listening history.
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
 
-        {sourceType === 'TOP_SONGS' && (
-          <div className="space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Time Window
-              </label>
-              <div className="space-y-2">
-                {(['THIS_WEEK', 'THIS_MONTH', 'PAST_6_MONTHS', 'PAST_YEAR', 'ALL_TIME'] as TimeWindow[]).map((window) => (
-                  <label key={window} className="flex items-center">
-                    <input
-                      type="radio"
-                      name="timeWindow"
-                      value={window}
-                      checked={timeWindow === window}
-                      onChange={(e) => setTimeWindow(e.target.value as TimeWindow)}
-                      className="mr-2"
-                    />
-                    <span className="text-sm text-gray-700">
-                      {window === 'THIS_WEEK' && 'This Week (last 7 days)'}
-                      {window === 'THIS_MONTH' && 'This Month (last 30 days)'}
-                      {window === 'PAST_6_MONTHS' && 'Past 6 Months (last 180 days)'}
-                      {window === 'PAST_YEAR' && 'Past Year (last 365 days)'}
-                      {window === 'ALL_TIME' && 'All Time'}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Music Sources
-              </label>
-              <p className="mb-2 text-sm text-gray-600">
-                Select which service(s) to use for your top songs. You must have at least one connected.
-              </p>
-              <div className="space-y-2">
-                {spotifyConnected && (
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedSources.includes('SPOTIFY')}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedSources([...selectedSources, 'SPOTIFY'])
-                        } else {
-                          setSelectedSources(selectedSources.filter(s => s !== 'SPOTIFY'))
-                        }
-                      }}
-                      className="mr-2"
-                    />
-                    <span className="text-sm text-gray-700">Spotify</span>
-                  </label>
-                )}
-                {appleMusicConnected && (
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedSources.includes('APPLE_MUSIC')}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedSources([...selectedSources, 'APPLE_MUSIC'])
-                        } else {
-                          setSelectedSources(selectedSources.filter(s => s !== 'APPLE_MUSIC'))
-                        }
-                      }}
-                      className="mr-2"
-                    />
-                    <span className="text-sm text-gray-700">Apple Music</span>
-                  </label>
-                )}
-                {!spotifyConnected && !appleMusicConnected && (
-                  <div className="rounded border border-yellow-200 bg-yellow-50 p-3">
-                    <p className="mb-2 text-sm text-yellow-800">
-                      You need to connect at least one music service to create a Top Songs list.
-                    </p>
-                    <div className="flex gap-2">
-                      {!spotifyConnected && <SpotifyConnectButton />}
-                      {!appleMusicConnected && <AppleMusicConnectButton />}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <p className="text-sm text-gray-600">
-              This list will automatically update daily with your top 10 tracks based on your listening history.
-            </p>
-          </div>
-        )}
 
         {sourceType === 'MANUAL' && (
           <div className="space-y-4">
