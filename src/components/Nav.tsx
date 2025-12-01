@@ -73,6 +73,12 @@ export default function Nav() {
             </Link>
             {user && (
               <>
+                <Link
+                  href="/explore"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Explore
+                </Link>
                 {isActive && currentStep === 'create-list' && getStepById('create-list') && (
                   <TutorialModal step={getStepById('create-list')!} />
                 )}
