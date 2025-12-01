@@ -7,6 +7,7 @@ import Button from './ui/Button'
 import { useTutorial } from '@/contexts/TutorialContext'
 import TutorialModal from './TutorialModal'
 import { getStepById } from '@/lib/tutorialSteps'
+import NotificationDropdown from './NotificationDropdown'
 
 export default function Nav() {
   const router = useRouter()
@@ -14,6 +15,8 @@ export default function Nav() {
   const { currentStep, isActive, startTutorial } = useTutorial()
   const [user, setUser] = useState<{ id: string; username: string } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [showNotifications, setShowNotifications] = useState(false)
 
   const fetchUser = async () => {
     try {
@@ -31,6 +34,19 @@ export default function Nav() {
     }
   }
 
+  const fetchNotifications = async () => {
+    if (!user) return
+    try {
+      const res = await fetch('/api/notifications?unread=true')
+      const data = await res.json()
+      if (res.ok) {
+        setUnreadCount(data.unreadCount || 0)
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error)
+    }
+  }
+
   useEffect(() => {
     fetchUser()
   }, [])
@@ -39,6 +55,18 @@ export default function Nav() {
   useEffect(() => {
     fetchUser()
   }, [pathname])
+
+  // Fetch notifications when user is logged in
+  useEffect(() => {
+    if (user) {
+      fetchNotifications()
+      // Poll for new notifications every 30 seconds
+      const interval = setInterval(fetchNotifications, 30000)
+      return () => clearInterval(interval)
+    } else {
+      setUnreadCount(0)
+    }
+  }, [user])
 
   // Listen for custom event to refresh user (for immediate updates)
   useEffect(() => {
@@ -94,6 +122,40 @@ export default function Nav() {
                 >
                   Create
                 </Link>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="relative text-sm text-gray-600 hover:text-gray-900"
+                    aria-label="Notifications"
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                      />
+                    </svg>
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs font-medium text-white">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                  {showNotifications && (
+                    <NotificationDropdown
+                      onClose={() => {
+                        setShowNotifications(false)
+                        fetchNotifications() // Refresh count after closing
+                      }}
+                    />
+                  )}
+                </div>
                 <Link
                   href="/profile"
                   className="text-sm text-gray-600 hover:text-gray-900"

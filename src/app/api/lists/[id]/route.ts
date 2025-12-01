@@ -11,8 +11,8 @@ const updateListSchema = z.object({
   description: z.string().optional(),
   priceCents: z.number().int().min(0, 'Price must be >= 0'),
   isPublic: z.boolean(),
-  sourceType: z.enum(['MANUAL', 'SPOTIFY', 'APPLE_MUSIC']),
-  playlistUrl: z.string().optional(), // For Spotify lists
+  sourceType: z.enum(['MANUAL', 'SPOTIFY', 'APPLE_MUSIC', 'TOP_SONGS']),
+  playlistUrl: z.string().optional(), // For Spotify/Apple Music lists
   items: z
     .array(
       z.object({
@@ -45,6 +45,7 @@ export async function GET(
         },
         spotifyConfig: true,
         appleMusicConfig: true,
+        topSongsConfig: true,
       },
     })
 
@@ -89,6 +90,24 @@ export async function PUT(
     console.log('Updating list with payload:', JSON.stringify(body, null, 2))
     const validated = updateListSchema.parse(body)
 
+    // Get existing list with configs to check if we need to re-sync
+    const existingList = await prisma.list.findUnique({
+      where: { id },
+      include: {
+        spotifyConfig: true,
+        appleMusicConfig: true,
+        topSongsConfig: true,
+      },
+    })
+
+    if (!existingList) {
+      return NextResponse.json({ error: 'List not found' }, { status: 404 })
+    }
+
+    // Check if price changed (for email notifications later)
+    const priceChanged = existingList.priceCents !== validated.priceCents
+    const oldPriceCents = existingList.priceCents
+
     // Validate Stripe Connect account if making list public (or if it's already public and staying public)
     if (validated.isPublic) {
       const stripeConnectAccount = await prisma.stripeConnectAccount.findUnique({
@@ -123,7 +142,95 @@ export async function PUT(
       }
     }
 
-    // Handle Spotify list updates
+    // For synced lists (SPOTIFY, APPLE_MUSIC, TOP_SONGS), check if we're only updating metadata
+    const isSyncedList = existingList.sourceType === 'SPOTIFY' || 
+                         existingList.sourceType === 'APPLE_MUSIC' || 
+                         existingList.sourceType === 'TOP_SONGS'
+    
+    const isMetadataOnlyUpdate = isSyncedList && 
+                                  validated.sourceType === existingList.sourceType &&
+                                  !validated.playlistUrl // No playlist URL means we're not changing the source
+
+    // Helper function to create price change notifications for subscribers
+    const createPriceChangeNotifications = async (listSlug: string, listName: string) => {
+      if (!priceChanged || !existingList.isPublic) {
+        return
+      }
+
+      try {
+        // Get all active subscriptions for this list
+        const subscriptions = await prisma.subscription.findMany({
+          where: {
+            listId: id,
+          },
+          select: {
+            userId: true,
+          },
+        })
+
+        if (subscriptions.length === 0) {
+          return
+        }
+
+        // Format prices for display
+        const oldPrice = (oldPriceCents / 100).toFixed(2)
+        const newPrice = (validated.priceCents / 100).toFixed(2)
+
+        // Create notifications for each subscriber
+        const notificationPromises = subscriptions.map((subscription) =>
+          prisma.notification.create({
+            data: {
+              userId: subscription.userId,
+              listId: id,
+              type: 'PRICE_CHANGE',
+              title: `Price Update: ${listName}`,
+              message: `The subscription price for "${listName}" has changed from $${oldPrice}/month to $${newPrice}/month. This change will take effect on your next billing cycle.`,
+            },
+          }).catch((error) => {
+            console.error(`Failed to create notification for user ${subscription.userId}:`, error)
+            // Don't throw - continue creating notifications for other subscribers
+          })
+        )
+
+        await Promise.allSettled(notificationPromises)
+        console.log(`Created price change notifications for ${subscriptions.length} subscribers`)
+      } catch (error) {
+        console.error('Error creating price change notifications:', error)
+        // Don't fail the request if notification creation fails
+      }
+    }
+
+    // If it's a metadata-only update for a synced list, just update the list fields without re-syncing
+    if (isMetadataOnlyUpdate) {
+      const updatedList = await prisma.list.update({
+        where: { id },
+        data: {
+          name: validated.name,
+          description: validated.description || '',
+          priceCents: validated.priceCents,
+          isPublic: validated.isPublic,
+        },
+        include: {
+          items: {
+            orderBy: { sortOrder: 'asc' },
+          },
+          spotifyConfig: true,
+          appleMusicConfig: true,
+          topSongsConfig: true,
+        },
+      })
+
+      // Create price change notifications if needed (don't await - create in background)
+      createPriceChangeNotifications(updatedList.slug, updatedList.name).catch(console.error)
+
+      return NextResponse.json({ 
+        list: updatedList,
+        priceChanged: priceChanged && existingList.isPublic,
+        oldPriceCents: oldPriceCents,
+      })
+    }
+
+    // Handle Spotify list updates (including new sync or changing playlist)
     if (validated.sourceType === 'SPOTIFY') {
       if (!validated.playlistUrl) {
         return NextResponse.json(
@@ -213,7 +320,14 @@ export async function PUT(
         },
       })
 
-      return NextResponse.json({ list: updatedList })
+      // Create price change notifications if needed (don't await - create in background)
+      createPriceChangeNotifications(updatedList.slug, updatedList.name).catch(console.error)
+
+      return NextResponse.json({ 
+        list: updatedList,
+        priceChanged: priceChanged && updatedList.isPublic,
+        oldPriceCents: oldPriceCents,
+      })
     }
 
     // Handle Apple Music list updates
@@ -307,7 +421,44 @@ export async function PUT(
         },
       })
 
-      return NextResponse.json({ list: updatedList })
+      // Create price change notifications if needed (don't await - create in background)
+      createPriceChangeNotifications(updatedList.slug, updatedList.name).catch(console.error)
+
+      return NextResponse.json({ 
+        list: updatedList,
+        priceChanged: priceChanged && updatedList.isPublic,
+        oldPriceCents: oldPriceCents,
+      })
+    }
+
+    // Handle TOP_SONGS list updates (metadata only - don't re-sync)
+    if (validated.sourceType === 'TOP_SONGS') {
+      // For TOP_SONGS, we only allow metadata updates (name, description, price)
+      // The sync happens via cron job, so we don't re-sync here
+      const updatedList = await prisma.list.update({
+        where: { id },
+        data: {
+          name: validated.name,
+          description: validated.description || '',
+          priceCents: validated.priceCents,
+          isPublic: validated.isPublic,
+        },
+        include: {
+          items: {
+            orderBy: { sortOrder: 'asc' },
+          },
+          topSongsConfig: true,
+        },
+      })
+
+      // Create price change notifications if needed (don't await - create in background)
+      createPriceChangeNotifications(updatedList.slug, updatedList.name).catch(console.error)
+
+      return NextResponse.json({ 
+        list: updatedList,
+        priceChanged: priceChanged && updatedList.isPublic,
+        oldPriceCents: oldPriceCents,
+      })
     }
 
     // Handle manual list updates
@@ -344,7 +495,14 @@ export async function PUT(
       },
     })
 
-    return NextResponse.json({ list: updatedList })
+    // Send price change emails if needed (don't await - send in background)
+    sendPriceChangeEmails(updatedList.slug, updatedList.name).catch(console.error)
+
+    return NextResponse.json({ 
+      list: updatedList,
+      priceChanged: priceChanged && updatedList.isPublic,
+      oldPriceCents: oldPriceCents,
+    })
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

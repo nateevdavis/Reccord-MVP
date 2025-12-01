@@ -25,6 +25,7 @@ model User {
   spotifyConnection    SpotifyConnection?
   appleMusicConnection AppleMusicConnection?
   payments             Payment[]
+  notifications        Notification[]
   tutorialCompleted    Boolean               @default(false)
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
@@ -49,6 +50,7 @@ model List {
   updatedAt        DateTime              @updatedAt
   items            ListItem[]
   subscriptions    Subscription[]
+  notifications    Notification[]
 
   @@map("lists")
 }
@@ -217,4 +219,29 @@ enum ListSourceType {
   TOP_SONGS
 
   @@map("list_source_type")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listId    String
+  list      List     @relation(fields: [listId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  PRICE_CHANGE
+  // Add more types as needed
+
+  @@map("notification_type")
 }

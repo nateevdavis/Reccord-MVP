@@ -371,69 +371,75 @@ export default function CreateForm({ listId }: { listId: string | null }) {
     let finalSourceType = sourceType
     let finalSources: string[] = []
     
-    if (sourceType === 'SPOTIFY' || sourceType === 'APPLE_MUSIC') {
-      if (syncType === 'TOP_SONGS') {
-        finalSourceType = 'TOP_SONGS'
-        finalSources = [sourceType] // Use the selected service
-      } else if (syncType === 'PLAYLIST') {
-        // Keep as SPOTIFY or APPLE_MUSIC
-        finalSourceType = sourceType
-      } else {
-        alert('Please select a sync type (Playlist or Top Songs)')
-        setLoading(false)
-        return
+    // Check if we're editing a synced list (metadata-only update)
+    const isEditingSyncedList = listId && (sourceType === 'SPOTIFY' || sourceType === 'APPLE_MUSIC' || sourceType === 'TOP_SONGS')
+    
+    if (!isEditingSyncedList) {
+      // Only validate sync configuration when creating a new list
+      if (sourceType === 'SPOTIFY' || sourceType === 'APPLE_MUSIC') {
+        if (syncType === 'TOP_SONGS') {
+          finalSourceType = 'TOP_SONGS'
+          finalSources = [sourceType] // Use the selected service
+        } else if (syncType === 'PLAYLIST') {
+          // Keep as SPOTIFY or APPLE_MUSIC
+          finalSourceType = sourceType
+        } else {
+          alert('Please select a sync type (Playlist or Top Songs)')
+          setLoading(false)
+          return
+        }
       }
-    }
 
-    // Validate Spotify playlist URL if needed
-    if (finalSourceType === 'SPOTIFY') {
-      if (!spotifyConnected) {
-        alert('Please connect Spotify first')
-        setLoading(false)
-        return
+      // Validate Spotify playlist URL if needed (only for new lists)
+      if (finalSourceType === 'SPOTIFY') {
+        if (!spotifyConnected) {
+          alert('Please connect Spotify first')
+          setLoading(false)
+          return
+        }
+        if (!playlistUrl.trim()) {
+          alert('Please enter a Spotify playlist URL')
+          setLoading(false)
+          return
+        }
       }
-      if (!playlistUrl.trim()) {
-        alert('Please enter a Spotify playlist URL')
-        setLoading(false)
-        return
-      }
-    }
 
-    // Validate Apple Music playlist URL if needed
-    if (finalSourceType === 'APPLE_MUSIC') {
-      if (!appleMusicConnected) {
-        alert('Please connect Apple Music first')
-        setLoading(false)
-        return
+      // Validate Apple Music playlist URL if needed (only for new lists)
+      if (finalSourceType === 'APPLE_MUSIC') {
+        if (!appleMusicConnected) {
+          alert('Please connect Apple Music first')
+          setLoading(false)
+          return
+        }
+        if (!playlistUrl.trim()) {
+          alert('Please enter an Apple Music playlist URL')
+          setLoading(false)
+          return
+        }
       }
-      if (!playlistUrl.trim()) {
-        alert('Please enter an Apple Music playlist URL')
-        setLoading(false)
-        return
-      }
-    }
 
-    // Validate Top Songs configuration
-    if (finalSourceType === 'TOP_SONGS') {
-      if (finalSources.length === 0) {
-        alert('Please select at least one music source (Spotify or Apple Music)')
-        setLoading(false)
-        return
-      }
-      if (!spotifyConnected && finalSources.includes('SPOTIFY')) {
-        alert('Please connect Spotify first')
-        setLoading(false)
-        return
-      }
-      if (!appleMusicConnected && finalSources.includes('APPLE_MUSIC')) {
-        alert('Please connect Apple Music first')
-        setLoading(false)
-        return
-      }
-      if (!timeWindow) {
-        alert('Please select a time window')
-        setLoading(false)
-        return
+      // Validate Top Songs configuration (only for new lists)
+      if (finalSourceType === 'TOP_SONGS') {
+        if (finalSources.length === 0) {
+          alert('Please select at least one music source (Spotify or Apple Music)')
+          setLoading(false)
+          return
+        }
+        if (!spotifyConnected && finalSources.includes('SPOTIFY')) {
+          alert('Please connect Spotify first')
+          setLoading(false)
+          return
+        }
+        if (!appleMusicConnected && finalSources.includes('APPLE_MUSIC')) {
+          alert('Please connect Apple Music first')
+          setLoading(false)
+          return
+        }
+        if (!timeWindow) {
+          alert('Please select a time window')
+          setLoading(false)
+          return
+        }
       }
     }
 
@@ -443,11 +449,18 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       priceCents,
       isPublic,
       sourceType: finalSourceType,
-      ...((finalSourceType === 'SPOTIFY' || finalSourceType === 'APPLE_MUSIC') && { playlistUrl: playlistUrl.trim() }),
-      ...(finalSourceType === 'TOP_SONGS' && {
-        timeWindow,
-        sources: finalSources,
-      }),
+    }
+    
+    // Only include playlistUrl if creating a new list or explicitly changing it
+    // When editing, omit playlistUrl to trigger metadata-only update
+    if (!isEditingSyncedList && (finalSourceType === 'SPOTIFY' || finalSourceType === 'APPLE_MUSIC')) {
+      payload.playlistUrl = playlistUrl.trim()
+    }
+    
+    // Only include top songs config for new lists
+    if (!isEditingSyncedList && finalSourceType === 'TOP_SONGS') {
+      payload.timeWindow = timeWindow
+      payload.sources = finalSources
     }
     
     // Only include items if sourceType is MANUAL and we have valid items
@@ -577,75 +590,89 @@ export default function CreateForm({ listId }: { listId: string | null }) {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {isActive && currentStep === 'source-type' && getStepById('source-type') && (
-          <TutorialModal step={getStepById('source-type')!} />
+        {/* Only show source type selection when creating a new list */}
+        {!listId && (
+          <>
+            {isActive && currentStep === 'source-type' && getStepById('source-type') && (
+              <TutorialModal step={getStepById('source-type')!} />
+            )}
+            <div data-tutorial="source-type">
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                How do you want to make your list?
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSourceType('MANUAL')
+                    // Advance tutorial if on source-type step
+                    if (isActive && currentStep === 'source-type') {
+                      setTimeout(() => nextStep({ sourceType: 'MANUAL' }), 300)
+                    }
+                  }}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                    sourceType === 'MANUAL'
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Manual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSourceType('SPOTIFY')
+                    setSyncType(null) // Reset sync type when switching services
+                    // Advance tutorial if on source-type step
+                    if (isActive && currentStep === 'source-type') {
+                      setTimeout(() => {
+                        setContext({ sourceType: 'SPOTIFY', spotifyConnected, appleMusicConnected })
+                        nextStep({ sourceType: 'SPOTIFY', spotifyConnected, appleMusicConnected })
+                      }, 300)
+                    }
+                  }}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                    sourceType === 'SPOTIFY'
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Spotify
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSourceType('APPLE_MUSIC')
+                    setSyncType(null) // Reset sync type when switching services
+                    // Advance tutorial if on source-type step
+                    if (isActive && currentStep === 'source-type') {
+                      setTimeout(() => {
+                        setContext({ sourceType: 'APPLE_MUSIC', spotifyConnected, appleMusicConnected })
+                        nextStep({ sourceType: 'APPLE_MUSIC', spotifyConnected, appleMusicConnected })
+                      }, 300)
+                    }
+                  }}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                    sourceType === 'APPLE_MUSIC'
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Apple Music
+                </button>
+              </div>
+            </div>
+          </>
         )}
-        <div data-tutorial="source-type">
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            How do you want to make your list?
-          </label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setSourceType('MANUAL')
-                // Advance tutorial if on source-type step
-                if (isActive && currentStep === 'source-type') {
-                  setTimeout(() => nextStep({ sourceType: 'MANUAL' }), 300)
-                }
-              }}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                sourceType === 'MANUAL'
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Manual
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSourceType('SPOTIFY')
-                setSyncType(null) // Reset sync type when switching services
-                // Advance tutorial if on source-type step
-                if (isActive && currentStep === 'source-type') {
-                  setTimeout(() => {
-                    setContext({ sourceType: 'SPOTIFY', spotifyConnected, appleMusicConnected })
-                    nextStep({ sourceType: 'SPOTIFY', spotifyConnected, appleMusicConnected })
-                  }, 300)
-                }
-              }}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                sourceType === 'SPOTIFY'
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Spotify
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSourceType('APPLE_MUSIC')
-                setSyncType(null) // Reset sync type when switching services
-                // Advance tutorial if on source-type step
-                if (isActive && currentStep === 'source-type') {
-                  setTimeout(() => {
-                    setContext({ sourceType: 'APPLE_MUSIC', spotifyConnected, appleMusicConnected })
-                    nextStep({ sourceType: 'APPLE_MUSIC', spotifyConnected, appleMusicConnected })
-                  }, 300)
-                }
-              }}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                sourceType === 'APPLE_MUSIC'
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Apple Music
-            </button>
+        
+        {/* Show info message when editing a synced list */}
+        {listId && (sourceType === 'SPOTIFY' || sourceType === 'APPLE_MUSIC' || sourceType === 'TOP_SONGS') && (
+          <div className="rounded border border-blue-200 bg-blue-50 p-3">
+            <p className="text-sm text-blue-800">
+              You're editing a synced list. You can update the title, description, and price, but the songs are synced automatically and cannot be changed here.
+            </p>
           </div>
-        </div>
+        )}
 
         {isActive && currentStep === 'title' && getStepById('title') && (
           <TutorialModal step={getStepById('title')!} />
@@ -732,7 +759,8 @@ export default function CreateForm({ listId }: { listId: string | null }) {
           </div>
         )}
 
-        {sourceType === 'SPOTIFY' && (
+        {/* Only show sync options when creating a new list */}
+        {!listId && sourceType === 'SPOTIFY' && (
           <div className="space-y-4">
             {!syncType && (
               <div>
@@ -768,6 +796,21 @@ export default function CreateForm({ listId }: { listId: string | null }) {
             
             {syncType === 'PLAYLIST' && (
               <>
+                <div className="flex items-center justify-between">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Sync a playlist
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSyncType('TOP_SONGS')
+                      setPlaylistUrl('') // Clear playlist URL when switching
+                    }}
+                    className="text-sm text-gray-600 hover:text-gray-900 underline"
+                  >
+                    Switch to top songs
+                  </button>
+                </div>
                 {isActive && currentStep === 'connect-spotify' && getStepById('connect-spotify') && (
                   <TutorialModal step={getStepById('connect-spotify')!} />
                 )}
@@ -823,6 +866,21 @@ export default function CreateForm({ listId }: { listId: string | null }) {
 
             {syncType === 'TOP_SONGS' && (
               <>
+                <div className="flex items-center justify-between">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Sync your top songs
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSyncType('PLAYLIST')
+                      setTimeWindow('THIS_MONTH') // Reset time window when switching
+                    }}
+                    className="text-sm text-gray-600 hover:text-gray-900 underline"
+                  >
+                    Switch to playlist
+                  </button>
+                </div>
                 {isActive && currentStep === 'connect-spotify' && getStepById('connect-spotify') && (
                   <TutorialModal step={getStepById('connect-spotify')!} />
                 )}
@@ -883,7 +941,8 @@ export default function CreateForm({ listId }: { listId: string | null }) {
           </div>
         )}
 
-        {sourceType === 'APPLE_MUSIC' && (
+        {/* Only show sync options when creating a new list */}
+        {!listId && sourceType === 'APPLE_MUSIC' && (
           <div className="space-y-4">
             {!syncType && (
               <div>
@@ -919,6 +978,21 @@ export default function CreateForm({ listId }: { listId: string | null }) {
 
             {syncType === 'PLAYLIST' && (
               <>
+                <div className="flex items-center justify-between">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Sync a playlist
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSyncType('TOP_SONGS')
+                      setPlaylistUrl('') // Clear playlist URL when switching
+                    }}
+                    className="text-sm text-gray-600 hover:text-gray-900 underline"
+                  >
+                    Switch to top songs
+                  </button>
+                </div>
                 {isActive && currentStep === 'connect-apple-music' && getStepById('connect-apple-music') && (
                   <TutorialModal step={getStepById('connect-apple-music')!} />
                 )}
@@ -974,6 +1048,21 @@ export default function CreateForm({ listId }: { listId: string | null }) {
 
             {syncType === 'TOP_SONGS' && (
               <>
+                <div className="flex items-center justify-between">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Sync your top songs
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSyncType('PLAYLIST')
+                      setTimeWindow('THIS_MONTH') // Reset time window when switching
+                    }}
+                    className="text-sm text-gray-600 hover:text-gray-900 underline"
+                  >
+                    Switch to playlist
+                  </button>
+                </div>
                 {isActive && currentStep === 'connect-apple-music' && getStepById('connect-apple-music') && (
                   <TutorialModal step={getStepById('connect-apple-music')!} />
                 )}
