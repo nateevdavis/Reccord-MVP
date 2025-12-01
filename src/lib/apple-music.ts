@@ -220,6 +220,7 @@ export async function fetchHeavyRotation(
   userToken: string
 ): Promise<AppleMusicTrack[]> {
   try {
+    console.log('Calling Apple Music API /v1/me/history/heavy-rotation')
     const response = await fetch(
       'https://api.music.apple.com/v1/me/history/heavy-rotation',
       {
@@ -237,11 +238,27 @@ export async function fetchHeavyRotation(
         statusText: response.statusText,
         error: errorData,
       })
-      throw new Error(`Apple Music API error: ${response.status}`)
+      
+      // Check for specific error types
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Apple Music authentication failed. Please reconnect Apple Music.')
+      }
+      if (response.status === 404) {
+        throw new Error('Heavy rotation endpoint not available. This may require an Apple Music subscription.')
+      }
+      
+      throw new Error(`Apple Music API error: ${response.status} - ${errorData.errors?.[0]?.detail || response.statusText}`)
     }
 
     const data = await response.json()
     const tracks = data.data || []
+    
+    console.log(`Apple Music API returned ${tracks.length} heavy rotation tracks`)
+
+    if (tracks.length === 0) {
+      console.warn('Apple Music API returned empty tracks array')
+      return []
+    }
 
     return tracks.map((track: any) => {
       const attributes = track.attributes || {}
@@ -257,7 +274,10 @@ export async function fetchHeavyRotation(
     })
   } catch (error) {
     console.error('Error fetching heavy rotation:', error)
-    throw new Error('Failed to fetch heavy rotation tracks')
+    if (error instanceof Error) {
+      throw error // Re-throw if it's already a proper Error with message
+    }
+    throw new Error(`Failed to fetch heavy rotation tracks: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -272,6 +292,7 @@ export async function fetchRecentlyPlayed(
   limit: number = 25
 ): Promise<AppleMusicTrack[]> {
   try {
+    console.log(`Calling Apple Music API /v1/me/recent/played/tracks with limit: ${limit}`)
     const response = await fetch(
       `https://api.music.apple.com/v1/me/recent/played/tracks?limit=${Math.min(limit, 25)}`,
       {
@@ -289,11 +310,27 @@ export async function fetchRecentlyPlayed(
         statusText: response.statusText,
         error: errorData,
       })
-      throw new Error(`Apple Music API error: ${response.status}`)
+      
+      // Check for specific error types
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Apple Music authentication failed. Please reconnect Apple Music.')
+      }
+      if (response.status === 404) {
+        throw new Error('Recently played endpoint not available. This may require an Apple Music subscription.')
+      }
+      
+      throw new Error(`Apple Music API error: ${response.status} - ${errorData.errors?.[0]?.detail || response.statusText}`)
     }
 
     const data = await response.json()
     const tracks = data.data || []
+    
+    console.log(`Apple Music API returned ${tracks.length} recently played items`)
+
+    if (tracks.length === 0) {
+      console.warn('Apple Music API returned empty items array for recently played')
+      return []
+    }
 
     // Count plays per track
     const trackMap = new Map<string, AppleMusicTrack & { playCount: number; lastPlayedAt: Date }>()
@@ -328,10 +365,15 @@ export async function fetchRecentlyPlayed(
       }
     })
 
-    return Array.from(trackMap.values())
+    const uniqueTracks = Array.from(trackMap.values())
+    console.log(`Processed ${uniqueTracks.length} unique tracks from recently played`)
+    return uniqueTracks
   } catch (error) {
     console.error('Error fetching recently played tracks:', error)
-    throw new Error('Failed to fetch recently played tracks')
+    if (error instanceof Error) {
+      throw error // Re-throw if it's already a proper Error with message
+    }
+    throw new Error(`Failed to fetch recently played tracks: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -347,28 +389,51 @@ export async function fetchTopTracks(
   timeWindow: string
 ): Promise<AppleMusicTrack[]> {
   try {
-    // For short time windows, use recently played
+    // For short time windows, try recently played first
     if (timeWindow === 'THIS_WEEK' || timeWindow === 'THIS_MONTH') {
-      const recentlyPlayed = await fetchRecentlyPlayed(developerToken, userToken, 25)
-      
-      // Filter by time window
-      const now = Date.now()
-      const windowMs = timeWindow === 'THIS_WEEK' 
-        ? 7 * 24 * 60 * 60 * 1000  // 7 days
-        : 30 * 24 * 60 * 60 * 1000 // 30 days
+      try {
+        const recentlyPlayed = await fetchRecentlyPlayed(developerToken, userToken, 25)
+        console.log(`Fetched ${recentlyPlayed.length} recently played Apple Music tracks`)
+        
+        // Filter by time window
+        const now = Date.now()
+        const windowMs = timeWindow === 'THIS_WEEK' 
+          ? 7 * 24 * 60 * 60 * 1000  // 7 days
+          : 30 * 24 * 60 * 60 * 1000 // 30 days
 
-      return recentlyPlayed.filter((track) => {
-        if (!track.lastPlayedAt) return false
-        return (now - track.lastPlayedAt.getTime()) <= windowMs
-      })
+        const filtered = recentlyPlayed.filter((track) => {
+          if (!track.lastPlayedAt) return false
+          return (now - track.lastPlayedAt.getTime()) <= windowMs
+        })
+        
+        console.log(`Filtered to ${filtered.length} Apple Music tracks within time window`)
+        
+        // If we have tracks, return them
+        if (filtered.length > 0) {
+          return filtered
+        }
+        
+        // If no tracks in the window, fall back to heavy rotation
+        console.log('No Apple Music tracks in time window, falling back to heavy rotation')
+      } catch (error) {
+        console.error('Error fetching recently played, falling back to heavy rotation:', error)
+        // Fall through to heavy rotation
+      }
     }
 
-    // For longer time windows, use heavy rotation
+    // For longer time windows, or as fallback for short windows, use heavy rotation
     // This is Apple Music's best approximation of top tracks
-    return await fetchHeavyRotation(developerToken, userToken)
+    console.log(`Fetching heavy rotation for time window: ${timeWindow}`)
+    const heavyRotation = await fetchHeavyRotation(developerToken, userToken)
+    console.log(`Fetched ${heavyRotation.length} heavy rotation tracks`)
+    return heavyRotation
   } catch (error) {
     console.error('Error fetching top tracks:', error)
-    throw new Error('Failed to fetch top tracks')
+    if (error instanceof Error) {
+      console.error('Error message:', error.message)
+      console.error('Error stack:', error.stack)
+    }
+    throw new Error(`Failed to fetch top tracks: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 

@@ -101,6 +101,7 @@ export async function GET() {
       myLists,
       subscriptions,
       spotifyConnected: !!spotifyConnection,
+      appleMusicConnected: !!appleMusicConnection,
       onboarding: {
         hasLists: myLists.length > 0,
         hasMusicConnection: !!spotifyConnection || !!appleMusicConnection,

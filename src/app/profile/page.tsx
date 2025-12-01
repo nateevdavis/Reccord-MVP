@@ -7,6 +7,7 @@ import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
 import Button from '@/components/ui/Button'
 import StripeConnectButton from '@/components/StripeConnectButton'
+import AppleMusicConnectButton from '@/components/AppleMusicConnectButton'
 import OnboardingChecklist from '@/components/OnboardingChecklist'
 
 type LinkItem = {
@@ -31,9 +32,11 @@ function ProfilePageContent() {
   const [myLists, setMyLists] = useState<List[]>([])
   const [subscriptions, setSubscriptions] = useState<List[]>([])
   const [spotifyConnected, setSpotifyConnected] = useState(false)
+  const [appleMusicConnected, setAppleMusicConnected] = useState(false)
   const [stripeConnected, setStripeConnected] = useState(false)
   const [stripeStatus, setStripeStatus] = useState<string>('not_connected')
   const [disconnectingSpotify, setDisconnectingSpotify] = useState(false)
+  const [disconnectingAppleMusic, setDisconnectingAppleMusic] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [onboarding, setOnboarding] = useState<{
@@ -70,6 +73,9 @@ function ProfilePageContent() {
         }
         if (data.spotifyConnected !== undefined) {
           setSpotifyConnected(data.spotifyConnected)
+        }
+        if (data.appleMusicConnected !== undefined) {
+          setAppleMusicConnected(data.appleMusicConnected)
         }
         if (data.onboarding) {
           setOnboarding(data.onboarding)
@@ -216,6 +222,31 @@ function ProfilePageContent() {
     }
   }
 
+  const handleDisconnectAppleMusic = async () => {
+    if (!confirm('Are you sure you want to disconnect Apple Music? Your Apple Music lists will stop syncing.')) {
+      return
+    }
+
+    setDisconnectingAppleMusic(true)
+    try {
+      const res = await fetch('/api/auth/apple-music/disconnect', {
+        method: 'POST',
+      })
+
+      if (res.ok) {
+        setAppleMusicConnected(false)
+        alert('Apple Music disconnected successfully')
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Failed to disconnect Apple Music')
+      }
+    } catch (error) {
+      alert('Failed to disconnect Apple Music')
+    } finally {
+      setDisconnectingAppleMusic(false)
+    }
+  }
+
   const handleManagePaymentMethods = async () => {
     try {
       const res = await fetch('/api/stripe/create-portal-session', {
@@ -353,6 +384,29 @@ function ProfilePageContent() {
                 >
                   Connect
                 </a>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between rounded border border-gray-200 p-4">
+              <div>
+                <h3 className="font-medium text-gray-900">Apple Music</h3>
+                <p className="text-sm text-gray-600">
+                  {appleMusicConnected
+                    ? 'Connected - Your playlists can sync to lists'
+                    : 'Not connected'}
+                </p>
+              </div>
+              {appleMusicConnected ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleDisconnectAppleMusic}
+                  disabled={disconnectingAppleMusic}
+                >
+                  {disconnectingAppleMusic ? 'Disconnecting...' : 'Disconnect'}
+                </Button>
+              ) : (
+                <AppleMusicConnectButton />
               )}
             </div>
             
