@@ -447,7 +447,30 @@ export default function CreateForm({ listId }: { listId: string | null }) {
         console.error('Error saving list:', data)
         console.error('Payload sent:', JSON.stringify(payload, null, 2))
         console.error('Response status:', res.status)
-        alert(data.error || 'Failed to save list')
+        
+        // Build a more detailed error message
+        let errorMessage = data.error || 'Failed to save list'
+        if (data.details) {
+          const details = data.details
+          const detailParts: string[] = []
+          if (details.spotifyTracksCount !== undefined) {
+            detailParts.push(`Spotify tracks: ${details.spotifyTracksCount}`)
+          }
+          if (details.appleMusicTracksCount !== undefined) {
+            detailParts.push(`Apple Music tracks: ${details.appleMusicTracksCount}`)
+          }
+          if (details.spotifyError) {
+            detailParts.push(`Spotify error: ${details.spotifyError}`)
+          }
+          if (details.appleMusicError) {
+            detailParts.push(`Apple Music error: ${details.appleMusicError}`)
+          }
+          if (detailParts.length > 0) {
+            errorMessage += '\n\nDetails: ' + detailParts.join('\n')
+          }
+        }
+        
+        alert(errorMessage)
         setLoading(false)
       }
     } catch (error) {
