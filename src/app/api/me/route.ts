@@ -106,6 +106,7 @@ export async function GET() {
         hasLists: myLists.length > 0,
         hasMusicConnection: !!spotifyConnection || !!appleMusicConnection,
         hasSubscribers,
+        hasSubscriptions: subscriptions.length > 0,
       },
     })
   } catch (error) {

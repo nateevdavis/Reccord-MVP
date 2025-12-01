@@ -43,10 +43,12 @@ function ProfilePageContent() {
     hasLists: boolean
     hasMusicConnection: boolean
     hasSubscribers: boolean
+    hasSubscriptions: boolean
   }>({
     hasLists: false,
     hasMusicConnection: false,
     hasSubscribers: false,
+    hasSubscriptions: false,
   })
 
   useEffect(() => {
@@ -280,6 +282,7 @@ function ProfilePageContent() {
         hasLists={onboarding.hasLists}
         hasMusicConnection={onboarding.hasMusicConnection}
         hasSubscribers={onboarding.hasSubscribers}
+        hasSubscriptions={onboarding.hasSubscriptions}
       />
 
       <div className="space-y-8">
